@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: primecx-frontend
+  namespace: primecx
+  labels:
+    app: primecx-frontend
+    app.kubernetes.io/part-of: primecx
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: primecx-frontend
+  template:
+    metadata:
+      labels:
+        app: primecx-frontend
+    spec:
+      containers:
+        - name: primecx-frontend
+          image: primecx-frontend:latest
+          ports:
+            - containerPort: 80
+              protocol: TCP
+          resources:
+            requests:
+              memory: 64Mi
+              cpu: 125m
+            limits:
+              memory: 128Mi
+              cpu: 250m
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3

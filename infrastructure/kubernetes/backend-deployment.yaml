@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: primecx-backend
+  namespace: primecx
+  labels:
+    app: primecx-backend
+    app.kubernetes.io/part-of: primecx
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: primecx-backend
+  template:
+    metadata:
+      labels:
+        app: primecx-backend
+    spec:
+      serviceAccountName: primecx-backend
+      containers:
+        - name: primecx-backend
+          image: primecx-backend:latest
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: primecx-config
+            - secretRef:
+                name: primecx-secrets
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: 250m
+            limits:
+              memory: 512Mi
+              cpu: 500m
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3

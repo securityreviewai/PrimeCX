@@ -1,0 +1,79 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: primecx-postgres
+    environment:
+      POSTGRES_DB: primecx
+      POSTGRES_USER: primecx
+      POSTGRES_PASSWORD: primecx_local
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - primecx-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U primecx"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  localstack:
+    image: localstack/localstack
+    container_name: primecx-localstack
+    environment:
+      SERVICES: s3
+      DEFAULT_REGION: us-west-2
+    ports:
+      - "4566:4566"
+    networks:
+      - primecx-network
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: primecx-backend
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/primecx
+      SPRING_DATASOURCE_USERNAME: primecx
+      SPRING_DATASOURCE_PASSWORD: primecx_local
+      SPRING_PROFILES_ACTIVE: local
+      AWS_S3_BUCKET_NAME: primecx-recordings
+      AWS_REGION: us-west-2
+      AWS_S3_ENDPOINT: http://localstack:4566
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      SERVER_PORT: "8080"
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-your-openai-api-key}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      localstack:
+        condition: service_started
+    networks:
+      - primecx-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: primecx-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - primecx-network
+
+volumes:
+  postgres-data:
+
+networks:
+  primecx-network:
+    driver: bridge

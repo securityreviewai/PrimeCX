@@ -1,0 +1,7 @@
+I want you to build an example app called PrimeCX. PrimeCX is a customer experience app where there are different roles like:
+- support executive
+- support administrator
+- support manager
+- user  Whenever there is a support executive assisting a user, the support executive's desktop gets recorded, and that recording information is stored in AWS S3. Videos are streamed from the client side and stored in AWS S3. You don't have to build the front-end components; you just have to build the back-end components in Java Spring. This is an example app, so you don't need to make it, and you don't need to add too much functionality. Just have functionality that will allow these users to work with this and some kind of API plus front-end where people can access the UI, a console, and an administration panel and all of that stuff. You can add some capabilities there. This is going to be deployed on AWS on EKS, so please write the relevant Terraform code as well as the Kubernetes-specific manifest to be able to deploy this on AWS. You don't have to run this; you don't have to deploy this. It just has to be an example app that works in this way.
+
+User Authentication must happen via SSO using OIDC and Okta

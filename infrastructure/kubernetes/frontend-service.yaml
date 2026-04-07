@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: primecx-frontend
+  namespace: primecx
+  labels:
+    app: primecx-frontend
+    app.kubernetes.io/part-of: primecx
+spec:
+  type: ClusterIP
+  selector:
+    app: primecx-frontend
+  ports:
+    - port: 80
+      targetPort: 80
+      protocol: TCP

@@ -1,0 +1,61 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: primecx-backend
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/primecx
+    username: ${DB_USERNAME:primecx}
+    password: ${DB_PASSWORD:primecx}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+
+  security:
+    oauth2:
+      client:
+        registration:
+          okta:
+            client-id: ${OKTA_CLIENT_ID:your-client-id}
+            client-secret: ${OKTA_CLIENT_SECRET:your-client-secret}
+            scope: openid,profile,email
+        provider:
+          okta:
+            issuer-uri: ${OKTA_ISSUER_URI:https://your-domain.okta.com/oauth2/default}
+      resourceserver:
+        jwt:
+          issuer-uri: ${OKTA_ISSUER_URI:https://your-domain.okta.com/oauth2/default}
+
+aws:
+  s3:
+    bucket-name: ${AWS_S3_BUCKET:primecx-recordings}
+    region: ${AWS_S3_REGION:us-east-1}
+  region: ${AWS_REGION:us-east-1}
+
+openai:
+  api-key: ${OPENAI_API_KEY:your-openai-api-key}
+  model: ${OPENAI_MODEL:gpt-4o}
+  base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+  show-actuator: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
