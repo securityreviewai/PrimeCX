@@ -48,6 +48,11 @@ const styles = {
     background: `${colors.danger}12`, color: colors.danger, padding: 12, borderRadius: 8,
     marginBottom: 16, fontSize: 14,
   },
+  copyBtn: {
+    fontSize: 13, fontWeight: 600, color: colors.primary, background: colors.gray100,
+    border: `1px solid ${colors.gray200}`, borderRadius: 8, padding: '6px 12px',
+    cursor: 'pointer', marginTop: 8,
+  },
 };
 
 export default function TicketDetail({ user }) {
@@ -62,6 +67,7 @@ export default function TicketDetail({ user }) {
   const [updating, setUpdating] = useState(false);
   const [internalNotes, setInternalNotes] = useState('');
   const [notesSaving, setNotesSaving] = useState(false);
+  const [copyDone, setCopyDone] = useState(false);
 
   const staffRoles = ['support_executive', 'support_admin', 'support_manager'];
   const canChangeStatus = staffRoles.includes(user?.role);
@@ -69,10 +75,10 @@ export default function TicketDetail({ user }) {
 
   useEffect(() => {
     const fetchData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const [ticketRes, sessionsRes] = await Promise.all([getTicket(id), getSessions()]);
+      try {
+        setLoading(true);
+        setError(null);
+        const [ticketRes, sessionsRes] = await Promise.all([getTicket(id), getSessions()]);
         const found = ticketRes.data;
         setTicket(found);
         setStatusUpdate(found.status);
@@ -129,6 +135,20 @@ export default function TicketDetail({ user }) {
     }
   };
 
+  const handleCopyReference = async () => {
+    if (!ticket) return;
+    const line = `#${ticket.id} · ${ticket.title}`;
+    const text = `${line}\n${window.location.href}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      setError(null);
+      setCopyDone(true);
+      window.setTimeout(() => setCopyDone(false), 2000);
+    } catch {
+      setError('Unable to copy to clipboard');
+    }
+  };
+
   if (loading) return <div style={styles.empty}>Loading ticket...</div>;
   if (!ticket && error) return <div style={{ ...styles.empty, color: colors.danger }}>{error}</div>;
   if (!ticket) return null;
@@ -161,6 +181,10 @@ export default function TicketDetail({ user }) {
             Created {new Date(ticket.createdAt).toLocaleDateString()}
           </span>
         </div>
+
+        <button type="button" style={styles.copyBtn} onClick={handleCopyReference}>
+          {copyDone ? 'Copied!' : 'Copy reference (ID, title & link)'}
+        </button>
 
         <p style={styles.description}>{ticket.description || 'No description provided.'}</p>
 
