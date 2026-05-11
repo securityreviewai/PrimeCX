@@ -46,6 +46,24 @@ openai:
   model: ${OPENAI_MODEL:gpt-4o}
   base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
 
+# Optional: POST signed JSON to this URL when POST /api/recordings/confirm succeeds (event: recording.ready).
+# Requires both callback-url and signing-secret. Set allow-non-public-targets=true only for local testing.
+primecx:
+  webhooks:
+    recording:
+      callback-url: ${RECORDING_READY_WEBHOOK_URL:}
+      signing-secret: ${RECORDING_READY_WEBHOOK_SECRET:}
+      allow-non-public-targets: false
+  # Retention & purge: policy rows in DB (per org+bucket or default per bucket) override these defaults.
+  # Align S3 bucket lifecycle rules with these values so objects are not expired by S3 before app logic runs;
+  # legal hold is enforced only in the application scheduled job and admin APIs.
+  storage:
+    default-retention-days: ${PRIMECX_STORAGE_DEFAULT_RETENTION_DAYS:2555}
+    default-soft-delete-grace-days: ${PRIMECX_STORAGE_DEFAULT_SOFT_DELETE_GRACE_DAYS:30}
+    purge-cron: ${PRIMECX_STORAGE_PURGE_CRON:0 0 3 * * *}
+    purge-enabled: ${PRIMECX_STORAGE_PURGE_ENABLED:true}
+    app-is-source-of-truth-for-deletion: true
+
 springdoc:
   api-docs:
     path: /v3/api-docs

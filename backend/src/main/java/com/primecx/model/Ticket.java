@@ -43,6 +43,14 @@ public class Ticket {
     @JoinColumn(name = "assigned_to_id")
     private User assignedTo;
 
+    /** User who last modified the ticket row or whose comment activity bumped last touch. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "last_updated_by_id")
+    private User lastUpdatedBy;
+
+    /** SLA-style target resolution time; optional. */
+    private LocalDateTime dueAt;
+
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;

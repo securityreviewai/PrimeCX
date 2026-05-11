@@ -28,6 +28,7 @@ public class SupportSessionService {
     private final SupportSessionRepository supportSessionRepository;
     private final TicketRepository ticketRepository;
     private final UserRepository userRepository;
+    private final AuditLogService auditLogService;
 
     @Transactional
     public SupportSession startSession(CreateSessionRequest request, Long executiveId) {
@@ -50,14 +51,17 @@ public class SupportSessionService {
     }
 
     @Transactional
-    public SupportSession endSession(Long sessionId, String notes) {
+    public SupportSession endSession(Long sessionId, String notes, Long actorUserId) {
         SupportSession session = getSessionById(sessionId);
         session.setStatus(SessionStatus.COMPLETED);
         session.setEndTime(LocalDateTime.now());
         session.setNotes(notes);
 
         log.info("Ending session {}", sessionId);
-        return supportSessionRepository.save(session);
+        SupportSession saved = supportSessionRepository.save(session);
+        Long ticketId = session.getTicket() != null ? session.getTicket().getId() : null;
+        auditLogService.appendSessionEnded(actorUserId, saved.getId(), ticketId);
+        return saved;
     }
 
     @Transactional

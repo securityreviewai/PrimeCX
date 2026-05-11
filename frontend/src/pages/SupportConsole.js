@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getTickets, startSession, endSession, getUploadUrl } from '../services/api';
+import { getTickets, startSession, endSession, getUploadUrl, exportTicketsCsv, getCannedResponses } from '../services/api';
+import { formatTicketLastTouch } from '../utils/formatTicketLastTouch';
+import CopySessionLinkButton from '../components/CopySessionLinkButton';
+import KnowledgeBasePanel from '../components/KnowledgeBasePanel';
 
 const colors = {
   primary: '#4F46E5', success: '#10B981', warning: '#F59E0B',
@@ -49,6 +52,11 @@ const styles = {
   },
 };
 
+function canAccessKnowledgeBase(user) {
+  const r = (user?.role || '').replace(/^ROLE_/i, '').toLowerCase();
+  return r === 'support_executive' || r === 'support_admin' || r === 'support_manager';
+}
+
 function formatDuration(seconds) {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
@@ -66,12 +74,16 @@ export default function SupportConsole({ user }) {
   const [endNotes, setEndNotes] = useState('');
   const [ending, setEnding] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(null);
+  const [overdueOnly, setOverdueOnly] = useState(false);
+  const [cannedResponses, setCannedResponses] = useState([]);
+  const [crPickerVisible, setCrPickerVisible] = useState(false);
+  const [crSearch, setCrSearch] = useState('');
   const timerRef = useRef(null);
 
   useEffect(() => {
     const fetch = async () => {
       try {
-        const res = await getTickets();
+        const res = await getTickets(overdueOnly ? { overdueOnly: true } : undefined);
         setTickets(res.data);
       } catch {
         setError('Failed to load tickets');
@@ -80,7 +92,7 @@ export default function SupportConsole({ user }) {
       }
     };
     fetch();
-  }, []);
+  }, [overdueOnly]);
 
   useEffect(() => {
     if (activeSession) {
@@ -88,6 +100,41 @@ export default function SupportConsole({ user }) {
     }
     return () => clearInterval(timerRef.current);
   }, [activeSession]);
+
+  useEffect(() => {
+    if (canAccessKnowledgeBase(user)) {
+      getCannedResponses().then((res) => setCannedResponses(res.data || [])).catch(() => {});
+    }
+  }, [user]);
+
+  const filteredCanned = crSearch
+    ? cannedResponses.filter((cr) =>
+        cr.shortcode.includes(crSearch.toLowerCase()) ||
+        cr.title.toLowerCase().includes(crSearch.toLowerCase()) ||
+        (cr.category || '').toLowerCase().includes(crSearch.toLowerCase())
+      )
+    : cannedResponses;
+
+  const insertCannedResponse = (cr) => {
+    setEndNotes((prev) => {
+      const prefix = prev && !prev.endsWith('\n') ? prev + '\n' : prev || '';
+      return prefix + cr.content;
+    });
+    setCrPickerVisible(false);
+    setCrSearch('');
+  };
+
+  const handleNotesChange = (e) => {
+    const val = e.target.value;
+    setEndNotes(val);
+    const lastLine = val.split('\n').pop();
+    if (lastLine.startsWith('/')) {
+      setCrSearch(lastLine.slice(1));
+      setCrPickerVisible(true);
+    } else {
+      setCrPickerVisible(false);
+    }
+  };
 
   const handleStartSession = async (ticketId) => {
     try {
@@ -132,9 +179,41 @@ export default function SupportConsole({ user }) {
     }
   };
 
+  const handleExportCsv = async () => {
+    try {
+      const res = await exportTicketsCsv();
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'tickets.csv');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      setError('Failed to export tickets');
+    }
+  };
+
   return (
     <div>
-      <h1 style={styles.heading}>Support Console</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
+        <h1 style={{ ...styles.heading, margin: 0 }}>Support Console</h1>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: colors.gray700 }}>
+          <input
+            type="checkbox"
+            checked={overdueOnly}
+            onChange={(e) => setOverdueOnly(e.target.checked)}
+          />
+          Overdue only
+        </label>
+        <button
+          style={{ ...styles.btn, background: colors.primary }}
+          onClick={handleExportCsv}
+        >
+          Export CSV
+        </button>
+      </div>
       <div style={styles.grid}>
         <div style={styles.card}>
           <h3 style={styles.cardTitle}>Assigned Tickets</h3>
@@ -151,6 +230,17 @@ export default function SupportConsole({ user }) {
                   <div style={{ fontWeight: 600, fontSize: 14 }}>{t.title}</div>
                   <div style={{ fontSize: 12, color: colors.gray500, marginTop: 2 }}>
                     #{t.id}
+                    {t.dueAt && (
+                      <span style={{ marginLeft: 8 }}>
+                        · Due {new Date(t.dueAt).toLocaleString()}
+                        {['RESOLVED', 'CLOSED'].includes(t.status) ? '' : (new Date(t.dueAt) < new Date() ? (
+                          <span style={{ color: colors.danger, fontWeight: 600, marginLeft: 4 }}>(overdue)</span>
+                        ) : null)}
+                      </span>
+                    )}
+                    <span style={{ marginLeft: 8 }}>
+                      · Last touch {formatTicketLastTouch(t)}
+                    </span>
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -180,9 +270,12 @@ export default function SupportConsole({ user }) {
             <div style={styles.sessionPanel}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                 <h3 style={{ ...styles.cardTitle, margin: 0, color: colors.primary }}>Active Session</h3>
-                <div style={{ display: 'flex', alignItems: 'center', fontSize: 13, fontWeight: 600, color: colors.danger }}>
-                  <span style={styles.recordingDot} />
-                  Recording
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <CopySessionLinkButton sessionId={activeSession.id} label="Copy handoff link" />
+                  <div style={{ display: 'flex', alignItems: 'center', fontSize: 13, fontWeight: 600, color: colors.danger }}>
+                    <span style={styles.recordingDot} />
+                    Recording
+                  </div>
                 </div>
               </div>
 
@@ -194,10 +287,38 @@ export default function SupportConsole({ user }) {
 
               <textarea
                 style={styles.textarea}
-                placeholder="Session notes..."
+                placeholder="Session notes... (type / to insert a canned response)"
                 value={endNotes}
-                onChange={(e) => setEndNotes(e.target.value)}
+                onChange={handleNotesChange}
               />
+
+              {crPickerVisible && filteredCanned.length > 0 && (
+                <div style={{
+                  border: `1px solid ${colors.gray200}`, borderRadius: 8, maxHeight: 200,
+                  overflowY: 'auto', marginBottom: 12, background: '#fff',
+                }}>
+                  {filteredCanned.slice(0, 8).map((cr) => (
+                    <button
+                      key={cr.id}
+                      type="button"
+                      onClick={() => insertCannedResponse(cr)}
+                      style={{
+                        display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px',
+                        border: 'none', borderBottom: `1px solid ${colors.gray100}`,
+                        background: 'none', cursor: 'pointer', fontSize: 13,
+                      }}
+                    >
+                      <span style={{ fontWeight: 600, color: colors.primary }}>/ {cr.shortcode}</span>
+                      <span style={{ color: colors.gray500, marginLeft: 8 }}>{cr.title}</span>
+                      {cr.category && (
+                        <span style={{ fontSize: 11, color: colors.gray500, marginLeft: 8 }}>
+                          [{cr.category}]
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               <div style={{ display: 'flex', gap: 12 }}>
                 <button
@@ -228,6 +349,10 @@ export default function SupportConsole({ user }) {
                     }} />
                   </div>
                 </div>
+              )}
+
+              {canAccessKnowledgeBase(user) && (
+                <KnowledgeBasePanel user={user} />
               )}
             </div>
           ) : (

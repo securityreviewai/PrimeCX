@@ -33,6 +33,8 @@ resource "aws_s3_bucket_public_access_block" "recordings" {
   restrict_public_buckets = true
 }
 
+# If the app enforces retention + legal hold, set expiration greater than effective policy or rely on
+# the PrimeCX scheduled purge; otherwise S3 may delete out-of-band before legal-hold rules run.
 resource "aws_s3_bucket_lifecycle_configuration" "recordings" {
   bucket = aws_s3_bucket.recordings.id
 

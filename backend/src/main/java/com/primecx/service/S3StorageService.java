@@ -19,6 +19,8 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 @Service
 public class S3StorageService {
 
+    public static final Duration PRESIGNED_DOWNLOAD_TTL = Duration.ofHours(1);
+
     private final S3Client s3Client;
     private final S3Presigner s3Presigner;
     private final String bucketName;
@@ -56,13 +58,17 @@ public class S3StorageService {
                 .build();
 
         GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
-                .signatureDuration(Duration.ofHours(1))
+                .signatureDuration(PRESIGNED_DOWNLOAD_TTL)
                 .getObjectRequest(getObjectRequest)
                 .build();
 
         String url = s3Presigner.presignGetObject(presignRequest).url().toString();
         log.debug("Generated presigned download URL for key: {}", key);
         return url;
+    }
+
+    public int presignedDownloadUrlTtlSeconds() {
+        return (int) PRESIGNED_DOWNLOAD_TTL.toSeconds();
     }
 
     public void deleteObject(String key) {

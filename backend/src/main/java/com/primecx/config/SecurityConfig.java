@@ -28,8 +28,11 @@ public class SecurityConfig {
                         .requestMatchers("/api/admin/**").hasRole("SUPPORT_ADMIN")
                         .requestMatchers("/api/manager/**").hasRole("SUPPORT_MANAGER")
                         .requestMatchers("/api/ai/**").authenticated()
+                        .requestMatchers("/api/portal/kb/**").authenticated()
+                        .requestMatchers("/api/canned-responses/**").authenticated()
+                        .requestMatchers("/api/users/**").authenticated()
                         .requestMatchers("/api/**").authenticated()
-                        .anyRequest().permitAll()
+                        .anyRequest().denyAll()
                 )
                 .oauth2Login(oauth2 -> oauth2
                         .defaultSuccessUrl("/api/auth/login-success", true)

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { getDashboard, getSessions, getRecordingsBySession } from '../services/api';
+import { getDashboard, getSessions, getRecordingsBySession, getRecordingDownloadUrl } from '../services/api';
+import CopySessionLinkButton from '../components/CopySessionLinkButton';
 
 const colors = {
   primary: '#4F46E5', success: '#10B981', warning: '#F59E0B',
@@ -9,7 +10,7 @@ const colors = {
 
 const styles = {
   heading: { fontSize: 24, fontWeight: 700, color: colors.gray900, marginBottom: 24 },
-  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 32 },
+  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16, marginBottom: 32 },
   statCard: {
     background: '#fff', borderRadius: 12, padding: '20px 24px',
     boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
@@ -32,6 +33,11 @@ const styles = {
     fontWeight: 600, textTransform: 'uppercase',
   },
   empty: { color: colors.gray500, fontSize: 14, textAlign: 'center', padding: 32 },
+  playBtn: {
+    background: 'none', border: 'none', color: colors.primary, fontSize: 13, fontWeight: 600,
+    cursor: 'pointer', padding: 0,
+  },
+  playBtnDisabled: { opacity: 0.55, cursor: 'not-allowed' },
   table: { width: '100%', borderCollapse: 'collapse' },
   th: {
     textAlign: 'left', padding: '10px 14px', fontSize: 12, fontWeight: 600,
@@ -48,6 +54,7 @@ export default function ManagerDashboard({ user }) {
   const [executiveFilter, setExecutiveFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [openingRecordingId, setOpeningRecordingId] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -74,6 +81,23 @@ export default function ManagerDashboard({ user }) {
     fetchData();
   }, []);
 
+  const openRecordingDownload = async (recordingId) => {
+    try {
+      setOpeningRecordingId(recordingId);
+      const res = await getRecordingDownloadUrl(recordingId);
+      const url = res.data?.downloadUrl;
+      if (typeof url === 'string' && /^https:\/\//i.test(url)) {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      } else {
+        window.alert('Download link unavailable.');
+      }
+    } catch {
+      window.alert('Unable to open recording. You may not have access.');
+    } finally {
+      setOpeningRecordingId(null);
+    }
+  };
+
   const executives = [...new Set(sessions.map((s) => s.executiveId).filter(Boolean))];
   const filteredSessions = executiveFilter
     ? sessions.filter((s) => String(s.executiveId) === executiveFilter)
@@ -94,6 +118,10 @@ export default function ManagerDashboard({ user }) {
         <div style={styles.statCard}>
           <div style={{ ...styles.statValue, color: colors.warning }}>{stats?.openTickets ?? 0}</div>
           <div style={styles.statLabel}>Open Tickets</div>
+        </div>
+        <div style={styles.statCard}>
+          <div style={{ ...styles.statValue, color: colors.danger }}>{stats?.overdueTickets ?? 0}</div>
+          <div style={styles.statLabel}>Overdue (SLA)</div>
         </div>
         <div style={styles.statCard}>
           <div style={{ ...styles.statValue, color: colors.success }}>{stats?.activeSessions ?? 0}</div>
@@ -134,6 +162,7 @@ export default function ManagerDashboard({ user }) {
                 <th style={styles.th}>Executive</th>
                 <th style={styles.th}>Started</th>
                 <th style={styles.th}>Status</th>
+                <th style={styles.th}>Share</th>
               </tr>
             </thead>
             <tbody>
@@ -152,6 +181,9 @@ export default function ManagerDashboard({ user }) {
                       {s.endTime ? 'Completed' : 'Active'}
                     </span>
                   </td>
+                  <td style={styles.td}>
+                    <CopySessionLinkButton sessionId={s.id} />
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -169,20 +201,21 @@ export default function ManagerDashboard({ user }) {
               <div>
                 <div style={{ fontWeight: 600, fontSize: 14 }}>Recording #{r.id}</div>
                 <div style={{ fontSize: 12, color: colors.gray500, marginTop: 2 }}>
-                  Session #{r.sessionId} &middot; {r.s3Key || 'N/A'}
+                  Session #{r.sessionId}
+                  {r.fileName ? ` · ${r.fileName}` : ''}
                 </div>
               </div>
-              <a
-                href={r.playbackUrl || '#'}
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                type="button"
+                onClick={() => openRecordingDownload(r.id)}
+                disabled={openingRecordingId === r.id}
                 style={{
-                  color: colors.primary, fontSize: 13, fontWeight: 600,
-                  textDecoration: 'none',
+                  ...styles.playBtn,
+                  ...(openingRecordingId === r.id ? styles.playBtnDisabled : {}),
                 }}
               >
-                &#9654; Play
-              </a>
+                {openingRecordingId === r.id ? 'Opening…' : '▶ Download / play'}
+              </button>
             </div>
           ))
         )}

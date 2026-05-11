@@ -71,4 +71,13 @@ public class AIController {
     public ResponseEntity<List<CustomerInsightDto>> getRecentInsights() {
         return ResponseEntity.ok(customerInsightService.getRecentInsights());
     }
+
+    /**
+     * What staff should know before using AI features: redaction rules and which flows use them.
+     */
+    @GetMapping("/llm-data-handling")
+    @PreAuthorize("hasAnyRole('SUPPORT_EXECUTIVE', 'SUPPORT_ADMIN', 'SUPPORT_MANAGER')")
+    public ResponseEntity<AiLlmDataHandlingDto> getLlmDataHandling() {
+        return ResponseEntity.ok(AiLlmDataHandlingDto.current());
+    }
 }

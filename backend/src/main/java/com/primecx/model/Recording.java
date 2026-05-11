@@ -40,6 +40,12 @@ public class Recording {
 
     private LocalDateTime uploadedAt;
 
+    @Builder.Default
+    @Column(nullable = false)
+    private boolean legalHold = false;
+
+    private LocalDateTime deletedAt;
+
     @PrePersist
     protected void onUpload() {
         if (uploadedAt == null) {

@@ -8,5 +8,7 @@ public record UserDto(
         String firstName,
         String lastName,
         Role role,
-        boolean active
+        boolean active,
+        Long organizationId,
+        String organizationName
 ) {}

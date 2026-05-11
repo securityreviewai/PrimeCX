@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getTickets, createTicket } from '../services/api';
+import { getTickets, createTicket, exportTicketsCsv } from '../services/api';
+import { formatTicketLastTouch } from '../utils/formatTicketLastTouch';
 
 const colors = {
   primary: '#4F46E5',
@@ -56,13 +57,14 @@ export default function UserPortal({ user }) {
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [form, setForm] = useState({ title: '', description: '', priority: 'MEDIUM' });
+  const [form, setForm] = useState({ title: '', description: '', priority: 'MEDIUM', dueAtLocal: '' });
   const [submitting, setSubmitting] = useState(false);
+  const [overdueOnly, setOverdueOnly] = useState(false);
 
   const fetchTickets = async () => {
     try {
       setLoading(true);
-      const res = await getTickets();
+      const res = await getTickets(overdueOnly ? { overdueOnly: true } : undefined);
       setTickets(res.data);
     } catch (err) {
       setError('Failed to load tickets');
@@ -71,15 +73,20 @@ export default function UserPortal({ user }) {
     }
   };
 
-  useEffect(() => { fetchTickets(); }, []);
+  useEffect(() => { fetchTickets(); }, [overdueOnly]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.title.trim()) return;
     try {
       setSubmitting(true);
-      await createTicket(form);
-      setForm({ title: '', description: '', priority: 'MEDIUM' });
+      await createTicket({
+        title: form.title,
+        description: form.description,
+        priority: form.priority,
+        dueAt: form.dueAtLocal ? `${form.dueAtLocal}:00` : null,
+      });
+      setForm({ title: '', description: '', priority: 'MEDIUM', dueAtLocal: '' });
       fetchTickets();
     } catch {
       setError('Failed to create ticket');
@@ -88,9 +95,41 @@ export default function UserPortal({ user }) {
     }
   };
 
+  const handleExportCsv = async () => {
+    try {
+      const res = await exportTicketsCsv();
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'tickets.csv');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      setError('Failed to export tickets');
+    }
+  };
+
   return (
     <div>
-      <h1 style={styles.heading}>My Tickets</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
+        <h1 style={{ ...styles.heading, margin: 0 }}>My Tickets</h1>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: colors.gray700 }}>
+          <input
+            type="checkbox"
+            checked={overdueOnly}
+            onChange={(e) => setOverdueOnly(e.target.checked)}
+          />
+          Overdue only
+        </label>
+        <button
+          style={{ background: colors.primary, color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+          onClick={handleExportCsv}
+        >
+          Export CSV
+        </button>
+      </div>
       <div style={styles.grid}>
         <div style={styles.card}>
           {loading ? (
@@ -112,6 +151,17 @@ export default function UserPortal({ user }) {
                   <div style={{ fontWeight: 600, fontSize: 15, color: colors.gray900 }}>{t.title}</div>
                   <div style={{ fontSize: 13, color: colors.gray500, marginTop: 4 }}>
                     #{t.id} &middot; {new Date(t.createdAt).toLocaleDateString()}
+                    {t.dueAt && (
+                      <span style={{ marginLeft: 8 }}>
+                        · Due {new Date(t.dueAt).toLocaleString()}
+                        {['RESOLVED', 'CLOSED'].includes(t.status) ? '' : (new Date(t.dueAt) < new Date() ? (
+                          <span style={{ color: colors.danger, fontWeight: 600, marginLeft: 4 }}>(overdue)</span>
+                        ) : null)}
+                      </span>
+                    )}
+                    <span style={{ marginLeft: 8 }}>
+                      · Last touch {formatTicketLastTouch(t)}
+                    </span>
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
@@ -165,6 +215,13 @@ export default function UserPortal({ user }) {
               <option value="HIGH">High</option>
               <option value="CRITICAL">Critical</option>
             </select>
+            <label style={styles.label}>Target due (optional SLA)</label>
+            <input
+              type="datetime-local"
+              style={styles.input}
+              value={form.dueAtLocal}
+              onChange={(e) => setForm({ ...form, dueAtLocal: e.target.value })}
+            />
             <button type="submit" style={styles.submitBtn} disabled={submitting}>
               {submitting ? 'Creating...' : 'Create Ticket'}
             </button>

@@ -1,5 +1,7 @@
 package com.primecx.service;
 
+import java.time.LocalDateTime;
+
 import org.springframework.stereotype.Service;
 
 import com.primecx.dto.DashboardStats;
@@ -24,10 +26,20 @@ public class DashboardService {
     public DashboardStats getStats() {
         long totalTickets = ticketRepository.count();
         long openTickets = ticketRepository.countByStatus(TicketStatus.OPEN);
+        long overdueTickets = ticketRepository.countOverdue(
+                LocalDateTime.now(),
+                TicketStatus.RESOLVED,
+                TicketStatus.CLOSED);
         long activeSessions = supportSessionRepository.countByStatus(SessionStatus.ACTIVE);
         long totalRecordings = recordingRepository.count();
         long totalUsers = userRepository.count();
 
-        return new DashboardStats(totalTickets, openTickets, activeSessions, totalRecordings, totalUsers);
+        return new DashboardStats(
+                totalTickets,
+                openTickets,
+                overdueTickets,
+                activeSessions,
+                totalRecordings,
+                totalUsers);
     }
 }

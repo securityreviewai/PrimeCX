@@ -1,0 +1,8 @@
+node_modules/
+
+# BEGIN VibeReview
+.vibreview/config.json
+.vibreview/sync-state.json
+.vibreview/scans/
+.cursor/mcp.json
+# END VibeReview

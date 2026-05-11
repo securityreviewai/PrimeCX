@@ -13,6 +13,9 @@ import ManagerDashboard from './pages/ManagerDashboard';
 import AdminPanel from './pages/AdminPanel';
 import TicketDetail from './pages/TicketDetail';
 import AIInsights from './pages/AIInsights';
+import SessionShareResolver from './pages/SessionShareResolver';
+import CustomerKBPortal from './pages/CustomerKBPortal';
+import CustomerKBArticle from './pages/CustomerKBArticle';
 
 const oktaAuth = new OktaAuth(oktaConfig);
 setAuthClient(oktaAuth);
@@ -104,6 +107,30 @@ function AppRoutes() {
             element={
               <ProtectedRoute oktaAuth={oktaAuth}>
                 <AIInsights />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/s/:token"
+            element={
+              <ProtectedRoute oktaAuth={oktaAuth}>
+                <SessionShareResolver />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/kb"
+            element={
+              <ProtectedRoute oktaAuth={oktaAuth}>
+                <CustomerKBPortal />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/kb/articles/:id"
+            element={
+              <ProtectedRoute oktaAuth={oktaAuth}>
+                <CustomerKBArticle />
               </ProtectedRoute>
             }
           />

@@ -2,7 +2,9 @@ package com.primecx.controller;
 
 import java.util.List;
 
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
@@ -12,7 +14,10 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import jakarta.validation.Valid;
 
 import com.primecx.dto.CreateTicketRequest;
 import com.primecx.dto.TicketDto;
@@ -38,7 +43,7 @@ public class TicketController {
 
     @PostMapping
     public ResponseEntity<TicketDto> createTicket(
-            @RequestBody CreateTicketRequest request,
+            @Valid @RequestBody CreateTicketRequest request,
             @AuthenticationPrincipal OidcUser oidcUser) {
         User currentUser = userService.getUserByOktaId(oidcUser.getSubject());
         Ticket ticket = ticketService.createTicket(request, currentUser.getId());
@@ -46,7 +51,9 @@ public class TicketController {
     }
 
     @GetMapping
-    public ResponseEntity<List<TicketDto>> getTickets(@AuthenticationPrincipal OidcUser oidcUser) {
+    public ResponseEntity<List<TicketDto>> getTickets(
+            @AuthenticationPrincipal OidcUser oidcUser,
+            @RequestParam(required = false) Boolean overdueOnly) {
         User currentUser = userService.getUserByOktaId(oidcUser.getSubject());
         List<Ticket> tickets;
 
@@ -58,20 +65,30 @@ public class TicketController {
             tickets = ticketService.getTicketsByUser(currentUser.getId());
         }
 
+        if (Boolean.TRUE.equals(overdueOnly)) {
+            tickets = tickets.stream().filter(ticketService::isOverdue).toList();
+        }
+
         List<TicketDto> dtos = tickets.stream().map(ticketService::toDto).toList();
         return ResponseEntity.ok(dtos);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<TicketDto> getTicketById(@PathVariable Long id) {
-        return ResponseEntity.ok(ticketService.toDto(ticketService.getTicketById(id)));
+    public ResponseEntity<TicketDto> getTicketById(
+            @PathVariable Long id,
+            @AuthenticationPrincipal OidcUser oidcUser) {
+        User currentUser = userService.getUserByOktaId(oidcUser.getSubject());
+        Ticket ticket = ticketService.getTicketForViewer(id, currentUser);
+        return ResponseEntity.ok(ticketService.toDto(ticket));
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<TicketDto> updateTicket(
             @PathVariable Long id,
-            @RequestBody UpdateTicketRequest request) {
-        Ticket ticket = ticketService.updateTicket(id, request);
+            @Valid @RequestBody UpdateTicketRequest request,
+            @AuthenticationPrincipal OidcUser oidcUser) {
+        User currentUser = userService.getUserByOktaId(oidcUser.getSubject());
+        Ticket ticket = ticketService.updateTicket(id, request, currentUser.getId());
         return ResponseEntity.ok(ticketService.toDto(ticket));
     }
 
@@ -81,5 +98,28 @@ public class TicketController {
                 .map(ticketService::toDto)
                 .toList();
         return ResponseEntity.ok(dtos);
+    }
+
+    @GetMapping("/export")
+    public ResponseEntity<byte[]> exportTicketsCsv(@AuthenticationPrincipal OidcUser oidcUser) {
+        User currentUser = userService.getUserByOktaId(oidcUser.getSubject());
+        List<Ticket> tickets;
+
+        if (currentUser.getRole() == Role.ROLE_SUPPORT_ADMIN || currentUser.getRole() == Role.ROLE_SUPPORT_MANAGER) {
+            tickets = ticketService.getAllTickets();
+        } else if (currentUser.getRole() == Role.ROLE_SUPPORT_EXECUTIVE) {
+            tickets = ticketService.getTicketsByAssignee(currentUser.getId());
+        } else {
+            tickets = ticketService.getTicketsByUser(currentUser.getId());
+        }
+
+        byte[] csvBytes = ticketService.generateCsv(tickets);
+
+        log.info("CSV export by user {} (role={}), {} records", currentUser.getId(), currentUser.getRole(), tickets.size());
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"tickets.csv\"")
+                .contentType(MediaType.parseMediaType("text/csv"))
+                .body(csvBytes);
     }
 }

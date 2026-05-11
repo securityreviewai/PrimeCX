@@ -7,6 +7,7 @@ import {
   categorizeTicket,
   generateCustomerInsights,
 } from '../services/api';
+import AiDataHandlingNotice from '../components/AiDataHandlingNotice';
 
 const colors = {
   primary: '#4F46E5',
@@ -547,6 +548,10 @@ export default function AIInsights() {
       <div style={s.header}>
         <span style={s.headerIcon}>✦</span>
         <h1 style={s.heading}>AI Insights</h1>
+      </div>
+
+      <div style={{ marginBottom: 28 }}>
+        <AiDataHandlingNotice />
       </div>
 
       {/* Summary Stats */}

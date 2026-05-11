@@ -49,9 +49,11 @@ public class SupportSessionController {
     @PutMapping("/{id}/end")
     public ResponseEntity<SupportSessionDto> endSession(
             @PathVariable Long id,
-            @RequestBody Map<String, String> body) {
+            @RequestBody Map<String, String> body,
+            @AuthenticationPrincipal OidcUser oidcUser) {
         String notes = body.get("notes");
-        SupportSession session = supportSessionService.endSession(id, notes);
+        User actor = userService.getUserByOktaId(oidcUser.getSubject());
+        SupportSession session = supportSessionService.endSession(id, notes, actor.getId());
         return ResponseEntity.ok(supportSessionService.toDto(session));
     }
 

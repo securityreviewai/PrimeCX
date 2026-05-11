@@ -88,12 +88,16 @@ export default function Navbar({ user, oktaAuth }) {
 
       <div style={styles.links}>
         {role === 'user' && (
-          <NavLink to="/tickets">Tickets</NavLink>
+          <>
+            <NavLink to="/tickets">Tickets</NavLink>
+            <NavLink to="/kb">Help Center</NavLink>
+          </>
         )}
         {role === 'support_executive' && (
           <>
             <NavLink to="/console">Console</NavLink>
             <NavLink to="/tickets">Tickets</NavLink>
+            <NavLink to="/kb">Help Center</NavLink>
           </>
         )}
         {role === 'support_manager' && (
@@ -101,6 +105,7 @@ export default function Navbar({ user, oktaAuth }) {
             <NavLink to="/dashboard">Dashboard</NavLink>
             <NavLink to="/ai-insights">AI Insights</NavLink>
             <NavLink to="/tickets">Tickets</NavLink>
+            <NavLink to="/kb">Help Center</NavLink>
           </>
         )}
         {role === 'support_admin' && (
@@ -110,6 +115,7 @@ export default function Navbar({ user, oktaAuth }) {
             <NavLink to="/ai-insights">AI Insights</NavLink>
             <NavLink to="/console">Console</NavLink>
             <NavLink to="/tickets">Tickets</NavLink>
+            <NavLink to="/kb">Help Center</NavLink>
           </>
         )}
       </div>
