@@ -15,6 +15,7 @@ public record TicketDto(
         String userName,
         Long assignedToId,
         String assignedToName,
+        String internalNotes,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {}

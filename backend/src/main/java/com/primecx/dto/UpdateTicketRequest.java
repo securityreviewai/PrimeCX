@@ -8,5 +8,6 @@ public record UpdateTicketRequest(
         String description,
         TicketStatus status,
         TicketPriority priority,
-        Long assignedToId
+        Long assignedToId,
+        String internalNotes
 ) {}

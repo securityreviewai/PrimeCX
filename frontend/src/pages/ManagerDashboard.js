@@ -9,7 +9,7 @@ const colors = {
 
 const styles = {
   heading: { fontSize: 24, fontWeight: 700, color: colors.gray900, marginBottom: 24 },
-  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 32 },
+  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 16, marginBottom: 32 },
   statCard: {
     background: '#fff', borderRadius: 12, padding: '20px 24px',
     boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
@@ -94,6 +94,10 @@ export default function ManagerDashboard({ user }) {
         <div style={styles.statCard}>
           <div style={{ ...styles.statValue, color: colors.warning }}>{stats?.openTickets ?? 0}</div>
           <div style={styles.statLabel}>Open Tickets</div>
+        </div>
+        <div style={styles.statCard}>
+          <div style={{ ...styles.statValue, color: '#B91C1C' }}>{stats?.criticalOpenTickets ?? 0}</div>
+          <div style={styles.statLabel}>Open · Critical priority</div>
         </div>
         <div style={styles.statCard}>
           <div style={{ ...styles.statValue, color: colors.success }}>{stats?.activeSessions ?? 0}</div>

@@ -1,6 +1,7 @@
 package com.primecx.repository;
 
 import com.primecx.model.Ticket;
+import com.primecx.model.TicketPriority;
 import com.primecx.model.TicketStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
@@ -17,4 +18,6 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
     List<Ticket> findByStatus(TicketStatus status);
 
     long countByStatus(TicketStatus status);
+
+    long countByStatusAndPriority(TicketStatus status, TicketPriority priority);
 }

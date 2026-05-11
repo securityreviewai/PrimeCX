@@ -43,6 +43,10 @@ public class Ticket {
     @JoinColumn(name = "assigned_to_id")
     private User assignedTo;
 
+    @Lob
+    @Column(name = "internal_notes", columnDefinition = "TEXT")
+    private String internalNotes;
+
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;

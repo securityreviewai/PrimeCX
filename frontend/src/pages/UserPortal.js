@@ -48,6 +48,16 @@ const styles = {
     borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer', width: '100%',
   },
   label: { fontSize: 13, fontWeight: 600, color: colors.gray700, marginBottom: 6, display: 'block' },
+  filterBar: { display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' },
+  filterInput: {
+    flex: '1 1 200px', minWidth: 160, padding: '10px 14px', borderRadius: 8,
+    border: `1px solid ${colors.gray200}`, fontSize: 14, outline: 'none',
+  },
+  filterSelect: {
+    padding: '10px 14px', borderRadius: 8, border: `1px solid ${colors.gray200}`,
+    fontSize: 14, outline: 'none', background: '#fff', minWidth: 140,
+  },
+  metaHint: { fontSize: 13, color: colors.gray500, marginBottom: 12 },
   empty: { color: colors.gray500, fontSize: 14, textAlign: 'center', padding: 40 },
 };
 
@@ -58,6 +68,8 @@ export default function UserPortal({ user }) {
   const [error, setError] = useState(null);
   const [form, setForm] = useState({ title: '', description: '', priority: 'MEDIUM' });
   const [submitting, setSubmitting] = useState(false);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
 
   const fetchTickets = async () => {
     try {
@@ -72,6 +84,16 @@ export default function UserPortal({ user }) {
   };
 
   useEffect(() => { fetchTickets(); }, []);
+
+  const normalized = (s) => (s || '').toLowerCase();
+  const filteredTickets = tickets.filter((t) => {
+    const matchesText =
+      !search.trim() ||
+      normalized(t.title).includes(normalized(search.trim())) ||
+      String(t.id).includes(search.trim());
+    const matchesStatus = !statusFilter || t.status === statusFilter;
+    return matchesText && matchesStatus;
+  });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -93,14 +115,43 @@ export default function UserPortal({ user }) {
       <h1 style={styles.heading}>My Tickets</h1>
       <div style={styles.grid}>
         <div style={styles.card}>
+          <div style={styles.filterBar}>
+            <input
+              style={styles.filterInput}
+              type="search"
+              placeholder="Search by title or ticket #…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              aria-label="Search tickets"
+            />
+            <select
+              style={styles.filterSelect}
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              aria-label="Filter by status"
+            >
+              <option value="">All statuses</option>
+              <option value="OPEN">Open</option>
+              <option value="IN_PROGRESS">In progress</option>
+              <option value="RESOLVED">Resolved</option>
+              <option value="CLOSED">Closed</option>
+            </select>
+          </div>
+          {tickets.length > 0 && (
+            <p style={styles.metaHint}>
+              Showing {filteredTickets.length} of {tickets.length} tickets
+            </p>
+          )}
           {loading ? (
             <div style={styles.empty}>Loading tickets...</div>
           ) : error ? (
             <div style={{ ...styles.empty, color: colors.danger }}>{error}</div>
           ) : tickets.length === 0 ? (
             <div style={styles.empty}>No tickets yet. Create your first ticket!</div>
+          ) : filteredTickets.length === 0 ? (
+            <div style={styles.empty}>No tickets match your filters.</div>
           ) : (
-            tickets.map((t) => (
+            filteredTickets.map((t) => (
               <div
                 key={t.id}
                 style={styles.ticketRow}

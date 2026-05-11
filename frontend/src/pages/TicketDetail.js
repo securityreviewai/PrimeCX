@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getTickets, updateTicket, getSessions, getRecordingsBySession } from '../services/api';
+import { getTicket, updateTicket, getSessions, getRecordingsBySession } from '../services/api';
 
 const colors = {
   primary: '#4F46E5', success: '#10B981', warning: '#F59E0B',
@@ -38,6 +38,16 @@ const styles = {
     marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center',
   },
   empty: { color: colors.gray500, fontSize: 14, textAlign: 'center', padding: 32 },
+  notesArea: {
+    width: '100%', minHeight: 100, padding: 12, borderRadius: 8,
+    border: `1px solid ${colors.gray200}`, fontSize: 14, fontFamily: 'inherit', resize: 'vertical',
+    marginBottom: 12, boxSizing: 'border-box',
+  },
+  hint: { fontSize: 12, color: colors.gray500, marginBottom: 12 },
+  banner: {
+    background: `${colors.danger}12`, color: colors.danger, padding: 12, borderRadius: 8,
+    marginBottom: 16, fontSize: 14,
+  },
 };
 
 export default function TicketDetail({ user }) {
@@ -50,20 +60,25 @@ export default function TicketDetail({ user }) {
   const [error, setError] = useState(null);
   const [statusUpdate, setStatusUpdate] = useState('');
   const [updating, setUpdating] = useState(false);
+  const [internalNotes, setInternalNotes] = useState('');
+  const [notesSaving, setNotesSaving] = useState(false);
 
-  const canChangeStatus = user?.role === 'support_executive' || user?.role === 'support_admin';
+  const staffRoles = ['support_executive', 'support_admin', 'support_manager'];
+  const canChangeStatus = staffRoles.includes(user?.role);
+  const canEditInternalNotes = staffRoles.includes(user?.role);
 
   useEffect(() => {
     const fetchData = async () => {
-      try {
-        setLoading(true);
-        const [ticketRes, sessionsRes] = await Promise.all([getTickets(), getSessions()]);
-        const found = ticketRes.data.find((t) => String(t.id) === String(id));
-        if (!found) { setError('Ticket not found'); return; }
+    try {
+      setLoading(true);
+      setError(null);
+      const [ticketRes, sessionsRes] = await Promise.all([getTicket(id), getSessions()]);
+        const found = ticketRes.data;
         setTicket(found);
         setStatusUpdate(found.status);
+        setInternalNotes(found.internalNotes || '');
 
-        const ticketSessions = sessionsRes.data.filter((s) => String(s.ticketId) === String(id));
+        const ticketSessions = sessionsRes.data.filter((s) => String(s.ticketId) === String(found.id));
         setSessions(ticketSessions);
 
         const recs = {};
@@ -78,6 +93,7 @@ export default function TicketDetail({ user }) {
         setRecordings(recs);
       } catch {
         setError('Failed to load ticket details');
+        setTicket(null);
       } finally {
         setLoading(false);
       }
@@ -89,6 +105,7 @@ export default function TicketDetail({ user }) {
     if (!statusUpdate || statusUpdate === ticket.status) return;
     try {
       setUpdating(true);
+      setError(null);
       await updateTicket(id, { status: statusUpdate });
       setTicket({ ...ticket, status: statusUpdate });
     } catch {
@@ -98,14 +115,31 @@ export default function TicketDetail({ user }) {
     }
   };
 
+  const handleSaveInternalNotes = async () => {
+    if (!canEditInternalNotes) return;
+    try {
+      setNotesSaving(true);
+      setError(null);
+      await updateTicket(id, { internalNotes });
+      setTicket({ ...ticket, internalNotes });
+    } catch {
+      setError('Failed to save internal notes');
+    } finally {
+      setNotesSaving(false);
+    }
+  };
+
   if (loading) return <div style={styles.empty}>Loading ticket...</div>;
-  if (error) return <div style={{ ...styles.empty, color: colors.danger }}>{error}</div>;
+  if (!ticket && error) return <div style={{ ...styles.empty, color: colors.danger }}>{error}</div>;
   if (!ticket) return null;
 
   return (
     <div>
       <button style={styles.backBtn} onClick={() => navigate(-1)}>&larr; Back</button>
 
+      {error && (
+        <div style={styles.banner}>{error}</div>
+      )}
       <div style={styles.card}>
         <h1 style={styles.title}>{ticket.title}</h1>
         <div style={styles.meta}>
@@ -149,6 +183,22 @@ export default function TicketDetail({ user }) {
           </div>
         )}
       </div>
+
+      {canEditInternalNotes && (
+        <div style={styles.card}>
+          <h3 style={styles.sectionTitle}>Internal notes</h3>
+          <p style={styles.hint}>Visible only to support staff. Not shown to customers.</p>
+          <textarea
+            style={styles.notesArea}
+            value={internalNotes}
+            onChange={(e) => setInternalNotes(e.target.value)}
+            placeholder="Handoff context, troubleshooting steps, customer context…"
+          />
+          <button type="button" style={styles.btn} onClick={handleSaveInternalNotes} disabled={notesSaving}>
+            {notesSaving ? 'Saving…' : 'Save notes'}
+          </button>
+        </div>
+      )}
 
       <div style={styles.card}>
         <h3 style={styles.sectionTitle}>Sessions</h3>
