@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getTicket, updateTicket, getSessions, getRecordingsBySession } from '../services/api';
 
@@ -10,6 +10,12 @@ const colors = {
 
 const priorityColors = { LOW: colors.success, MEDIUM: colors.warning, HIGH: '#F97316', CRITICAL: colors.danger };
 const statusColors = { OPEN: colors.primary, IN_PROGRESS: colors.warning, RESOLVED: colors.success, CLOSED: colors.gray500 };
+
+function sessionEndedAtMs(s) {
+  if (!s?.endTime) return 0;
+  const t = new Date(s.endTime).getTime();
+  return Number.isNaN(t) ? 0 : t;
+}
 
 const styles = {
   backBtn: {
@@ -53,6 +59,10 @@ const styles = {
     border: `1px solid ${colors.gray200}`, borderRadius: 8, padding: '6px 12px',
     cursor: 'pointer', marginTop: 8,
   },
+  wrapUpBody: {
+    fontSize: 14, color: colors.gray700, lineHeight: 1.65, whiteSpace: 'pre-wrap',
+    background: colors.gray100, padding: 14, borderRadius: 8, border: `1px solid ${colors.gray200}`,
+  },
 };
 
 export default function TicketDetail({ user }) {
@@ -72,6 +82,14 @@ export default function TicketDetail({ user }) {
   const staffRoles = ['support_executive', 'support_admin', 'support_manager'];
   const canChangeStatus = staffRoles.includes(user?.role);
   const canEditInternalNotes = staffRoles.includes(user?.role);
+
+  const latestWrapUpSession = useMemo(() => {
+    const candidates = sessions.filter(
+      (s) => s.endTime && s.notes && String(s.notes).trim().length > 0,
+    );
+    if (candidates.length === 0) return null;
+    return [...candidates].sort((a, b) => sessionEndedAtMs(b) - sessionEndedAtMs(a))[0];
+  }, [sessions]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -221,6 +239,22 @@ export default function TicketDetail({ user }) {
           <button type="button" style={styles.btn} onClick={handleSaveInternalNotes} disabled={notesSaving}>
             {notesSaving ? 'Saving…' : 'Save notes'}
           </button>
+        </div>
+      )}
+
+      {canEditInternalNotes && latestWrapUpSession && (
+        <div style={styles.card}>
+          <h3 style={styles.sectionTitle}>Latest session wrap-up</h3>
+          <p style={styles.hint}>
+            From session #{latestWrapUpSession.id}
+            {latestWrapUpSession.supportExecutiveName
+              ? ` · ${latestWrapUpSession.supportExecutiveName}`
+              : ''}
+            {latestWrapUpSession.endTime
+              ? ` · ended ${new Date(latestWrapUpSession.endTime).toLocaleString()}`
+              : ''}
+          </p>
+          <div style={styles.wrapUpBody}>{latestWrapUpSession.notes.trim()}</div>
         </div>
       )}
 
