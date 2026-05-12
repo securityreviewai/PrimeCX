@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getTickets, updateTicket, getSessions, getRecordingsBySession } from '../services/api';
+import { getTicket, updateTicket, getSessions, getRecordingsBySession } from '../services/api';
 
 const colors = {
   primary: '#4F46E5', success: '#10B981', warning: '#F59E0B',
@@ -10,6 +10,28 @@ const colors = {
 
 const priorityColors = { LOW: colors.success, MEDIUM: colors.warning, HIGH: '#F97316', CRITICAL: colors.danger };
 const statusColors = { OPEN: colors.primary, IN_PROGRESS: colors.warning, RESOLVED: colors.success, CLOSED: colors.gray500 };
+
+const TICKET_CATEGORY_LABELS = {
+  GENERAL: 'General',
+  BILLING: 'Billing',
+  TECHNICAL: 'Technical',
+  ACCOUNT: 'Account',
+  PRODUCT_FEEDBACK: 'Product feedback',
+};
+
+const TICKET_CATEGORY_OPTIONS = [
+  ['GENERAL', 'General'],
+  ['BILLING', 'Billing'],
+  ['TECHNICAL', 'Technical'],
+  ['ACCOUNT', 'Account'],
+  ['PRODUCT_FEEDBACK', 'Product feedback'],
+];
+
+function sessionEndedAtMs(s) {
+  if (!s?.endTime) return 0;
+  const t = new Date(s.endTime).getTime();
+  return Number.isNaN(t) ? 0 : t;
+}
 
 const styles = {
   backBtn: {
@@ -38,6 +60,36 @@ const styles = {
     marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center',
   },
   empty: { color: colors.gray500, fontSize: 14, textAlign: 'center', padding: 32 },
+  notesArea: {
+    width: '100%', minHeight: 100, padding: 12, borderRadius: 8,
+    border: `1px solid ${colors.gray200}`, fontSize: 14, fontFamily: 'inherit', resize: 'vertical',
+    marginBottom: 12, boxSizing: 'border-box',
+  },
+  hint: { fontSize: 12, color: colors.gray500, marginBottom: 12 },
+  banner: {
+    background: `${colors.danger}12`, color: colors.danger, padding: 12, borderRadius: 8,
+    marginBottom: 16, fontSize: 14,
+  },
+  copyBtn: {
+    fontSize: 13, fontWeight: 600, color: colors.primary, background: colors.gray100,
+    border: `1px solid ${colors.gray200}`, borderRadius: 8, padding: '6px 12px',
+    cursor: 'pointer', marginTop: 8,
+  },
+  escalationRow: {
+    display: 'flex', alignItems: 'center', gap: 10, marginTop: 12, fontSize: 14,
+    color: colors.gray700, cursor: 'pointer', userSelect: 'none',
+  },
+  wrapUpBody: {
+    fontSize: 14, color: colors.gray700, lineHeight: 1.65, whiteSpace: 'pre-wrap',
+    background: colors.gray100, padding: 14, borderRadius: 8, border: `1px solid ${colors.gray200}`,
+  },
+  supportReplyPublic: {
+    marginBottom: 20, padding: 16, background: `${colors.primary}0d`, borderRadius: 12,
+    border: `1px solid ${colors.primary}33`,
+  },
+  staffSplitRow: {
+    display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end', marginTop: 12,
+  },
 };
 
 export default function TicketDetail({ user }) {
@@ -50,20 +102,41 @@ export default function TicketDetail({ user }) {
   const [error, setError] = useState(null);
   const [statusUpdate, setStatusUpdate] = useState('');
   const [updating, setUpdating] = useState(false);
+  const [internalNotes, setInternalNotes] = useState('');
+  const [notesSaving, setNotesSaving] = useState(false);
+  const [copyDone, setCopyDone] = useState(false);
+  const [escalationSaving, setEscalationSaving] = useState(false);
+  const [supportReplyText, setSupportReplyText] = useState('');
+  const [supportReplySaving, setSupportReplySaving] = useState(false);
+  const [categoryEdit, setCategoryEdit] = useState('GENERAL');
+  const [categorySaving, setCategorySaving] = useState(false);
 
-  const canChangeStatus = user?.role === 'support_executive' || user?.role === 'support_admin';
+  const staffRoles = ['support_executive', 'support_admin', 'support_manager'];
+  const canChangeStatus = staffRoles.includes(user?.role);
+  const canEditInternalNotes = staffRoles.includes(user?.role);
+
+  const latestWrapUpSession = useMemo(() => {
+    const candidates = sessions.filter(
+      (s) => s.endTime && s.notes && String(s.notes).trim().length > 0,
+    );
+    if (candidates.length === 0) return null;
+    return [...candidates].sort((a, b) => sessionEndedAtMs(b) - sessionEndedAtMs(a))[0];
+  }, [sessions]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const [ticketRes, sessionsRes] = await Promise.all([getTickets(), getSessions()]);
-        const found = ticketRes.data.find((t) => String(t.id) === String(id));
-        if (!found) { setError('Ticket not found'); return; }
+        setError(null);
+        const [ticketRes, sessionsRes] = await Promise.all([getTicket(id), getSessions()]);
+        const found = ticketRes.data;
         setTicket(found);
         setStatusUpdate(found.status);
+        setInternalNotes(found.internalNotes || '');
+        setSupportReplyText(found.supportReply || '');
+        setCategoryEdit(found.category || 'GENERAL');
 
-        const ticketSessions = sessionsRes.data.filter((s) => String(s.ticketId) === String(id));
+        const ticketSessions = sessionsRes.data.filter((s) => String(s.ticketId) === String(found.id));
         setSessions(ticketSessions);
 
         const recs = {};
@@ -78,6 +151,7 @@ export default function TicketDetail({ user }) {
         setRecordings(recs);
       } catch {
         setError('Failed to load ticket details');
+        setTicket(null);
       } finally {
         setLoading(false);
       }
@@ -89,6 +163,7 @@ export default function TicketDetail({ user }) {
     if (!statusUpdate || statusUpdate === ticket.status) return;
     try {
       setUpdating(true);
+      setError(null);
       await updateTicket(id, { status: statusUpdate });
       setTicket({ ...ticket, status: statusUpdate });
     } catch {
@@ -98,14 +173,88 @@ export default function TicketDetail({ user }) {
     }
   };
 
+  const handleSaveInternalNotes = async () => {
+    if (!canEditInternalNotes) return;
+    try {
+      setNotesSaving(true);
+      setError(null);
+      await updateTicket(id, { internalNotes });
+      setTicket({ ...ticket, internalNotes });
+    } catch {
+      setError('Failed to save internal notes');
+    } finally {
+      setNotesSaving(false);
+    }
+  };
+
+  const handleEscalationToggle = async (e) => {
+    if (!canEditInternalNotes) return;
+    const next = e.target.checked;
+    try {
+      setEscalationSaving(true);
+      setError(null);
+      await updateTicket(id, { escalated: next });
+      setTicket({ ...ticket, escalated: next });
+    } catch {
+      setError('Failed to update escalation flag');
+    } finally {
+      setEscalationSaving(false);
+    }
+  };
+
+  const handleSaveSupportReply = async () => {
+    if (!canEditInternalNotes) return;
+    try {
+      setSupportReplySaving(true);
+      setError(null);
+      await updateTicket(id, { supportReply: supportReplyText });
+      setTicket({ ...ticket, supportReply: supportReplyText });
+    } catch {
+      setError('Failed to save support reply');
+    } finally {
+      setSupportReplySaving(false);
+    }
+  };
+
+  const handleSaveCategory = async () => {
+    if (!canEditInternalNotes) return;
+    try {
+      setCategorySaving(true);
+      setError(null);
+      await updateTicket(id, { category: categoryEdit });
+      setTicket({ ...ticket, category: categoryEdit });
+    } catch {
+      setError('Failed to update category');
+    } finally {
+      setCategorySaving(false);
+    }
+  };
+
+  const handleCopyReference = async () => {
+    if (!ticket) return;
+    const line = `#${ticket.id} · ${ticket.title}`;
+    const text = `${line}\n${window.location.href}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      setError(null);
+      setCopyDone(true);
+      window.setTimeout(() => setCopyDone(false), 2000);
+    } catch {
+      setError('Unable to copy to clipboard');
+    }
+  };
+
   if (loading) return <div style={styles.empty}>Loading ticket...</div>;
-  if (error) return <div style={{ ...styles.empty, color: colors.danger }}>{error}</div>;
+  if (!ticket && error) return <div style={{ ...styles.empty, color: colors.danger }}>{error}</div>;
   if (!ticket) return null;
 
   return (
     <div>
       <button style={styles.backBtn} onClick={() => navigate(-1)}>&larr; Back</button>
 
+      {error && (
+        <div style={styles.banner}>{error}</div>
+      )}
       <div style={styles.card}>
         <h1 style={styles.title}>{ticket.title}</h1>
         <div style={styles.meta}>
@@ -123,12 +272,91 @@ export default function TicketDetail({ user }) {
           }}>
             {ticket.priority}
           </span>
+          <span style={{
+            ...styles.badge,
+            background: colors.gray100,
+            color: colors.gray700,
+            border: `1px solid ${colors.gray200}`,
+            textTransform: 'none',
+          }}>
+            {TICKET_CATEGORY_LABELS[ticket.category] || 'General'}
+          </span>
+          {canEditInternalNotes && ticket.escalated && (
+            <span style={{
+              ...styles.badge,
+              background: `${colors.danger}22`,
+              color: colors.danger,
+            }}>
+              Escalated
+            </span>
+          )}
           <span style={{ fontSize: 13, color: colors.gray500, alignSelf: 'center' }}>
             Created {new Date(ticket.createdAt).toLocaleDateString()}
           </span>
         </div>
 
+        <button type="button" style={styles.copyBtn} onClick={handleCopyReference}>
+          {copyDone ? 'Copied!' : 'Copy reference (ID, title & link)'}
+        </button>
+
+        {canEditInternalNotes && (
+          <label style={styles.escalationRow}>
+            <input
+              type="checkbox"
+              checked={!!ticket.escalated}
+              onChange={handleEscalationToggle}
+              disabled={escalationSaving}
+            />
+            <span>
+              Escalated to leadership review
+              {escalationSaving ? ' (saving…)' : ''}
+            </span>
+          </label>
+        )}
+
         <p style={styles.description}>{ticket.description || 'No description provided.'}</p>
+
+        {ticket.supportReply && String(ticket.supportReply).trim() && (
+          <div style={styles.supportReplyPublic}>
+            <h3 style={{ ...styles.sectionTitle, marginTop: 0 }}>Message from support</h3>
+            <div style={{ ...styles.wrapUpBody, background: '#fff' }}>{ticket.supportReply.trim()}</div>
+          </div>
+        )}
+
+        {canEditInternalNotes && (
+          <div style={{ paddingTop: 8, marginBottom: 16, borderTop: `1px solid ${colors.gray100}` }}>
+            <h3 style={{ fontSize: 15, fontWeight: 700, color: colors.gray900, marginBottom: 8 }}>
+              Customer-visible reply
+            </h3>
+            <p style={styles.hint}>Customers see this on the ticket. Uses the same field as “Message from support” above.</p>
+            <textarea
+              style={styles.notesArea}
+              value={supportReplyText}
+              onChange={(e) => setSupportReplyText(e.target.value)}
+              placeholder="Updates, next steps, or answers for the customer…"
+            />
+            <button type="button" style={styles.btn} onClick={handleSaveSupportReply} disabled={supportReplySaving}>
+              {supportReplySaving ? 'Saving…' : 'Save reply'}
+            </button>
+            <div style={styles.staffSplitRow}>
+              <div>
+                <span style={{ fontSize: 13, fontWeight: 600, color: colors.gray700, display: 'block', marginBottom: 6 }}>Category</span>
+                <select
+                  style={styles.select}
+                  value={categoryEdit}
+                  onChange={(e) => setCategoryEdit(e.target.value)}
+                >
+                  {TICKET_CATEGORY_OPTIONS.map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+              </div>
+              <button type="button" style={styles.btn} onClick={handleSaveCategory} disabled={categorySaving}>
+                {categorySaving ? 'Saving…' : 'Save category'}
+              </button>
+            </div>
+          </div>
+        )}
 
         {canChangeStatus && (
           <div style={{ display: 'flex', alignItems: 'center', paddingTop: 12, borderTop: `1px solid ${colors.gray100}` }}>
@@ -149,6 +377,38 @@ export default function TicketDetail({ user }) {
           </div>
         )}
       </div>
+
+      {canEditInternalNotes && (
+        <div style={styles.card}>
+          <h3 style={styles.sectionTitle}>Internal notes</h3>
+          <p style={styles.hint}>Visible only to support staff. Not shown to customers.</p>
+          <textarea
+            style={styles.notesArea}
+            value={internalNotes}
+            onChange={(e) => setInternalNotes(e.target.value)}
+            placeholder="Handoff context, troubleshooting steps, customer context…"
+          />
+          <button type="button" style={styles.btn} onClick={handleSaveInternalNotes} disabled={notesSaving}>
+            {notesSaving ? 'Saving…' : 'Save notes'}
+          </button>
+        </div>
+      )}
+
+      {canEditInternalNotes && latestWrapUpSession && (
+        <div style={styles.card}>
+          <h3 style={styles.sectionTitle}>Latest session wrap-up</h3>
+          <p style={styles.hint}>
+            From session #{latestWrapUpSession.id}
+            {latestWrapUpSession.supportExecutiveName
+              ? ` · ${latestWrapUpSession.supportExecutiveName}`
+              : ''}
+            {latestWrapUpSession.endTime
+              ? ` · ended ${new Date(latestWrapUpSession.endTime).toLocaleString()}`
+              : ''}
+          </p>
+          <div style={styles.wrapUpBody}>{latestWrapUpSession.notes.trim()}</div>
+        </div>
+      )}
 
       <div style={styles.card}>
         <h3 style={styles.sectionTitle}>Sessions</h3>

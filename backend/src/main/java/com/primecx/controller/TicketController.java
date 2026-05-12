@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -42,7 +43,7 @@ public class TicketController {
             @AuthenticationPrincipal OidcUser oidcUser) {
         User currentUser = userService.getUserByOktaId(oidcUser.getSubject());
         Ticket ticket = ticketService.createTicket(request, currentUser.getId());
-        return ResponseEntity.status(HttpStatus.CREATED).body(ticketService.toDto(ticket));
+        return ResponseEntity.status(HttpStatus.CREATED).body(ticketService.toDto(ticket, currentUser));
     }
 
     @GetMapping
@@ -58,27 +59,39 @@ public class TicketController {
             tickets = ticketService.getTicketsByUser(currentUser.getId());
         }
 
-        List<TicketDto> dtos = tickets.stream().map(ticketService::toDto).toList();
+        List<TicketDto> dtos = tickets.stream()
+                .map(t -> ticketService.toDto(t, currentUser))
+                .toList();
         return ResponseEntity.ok(dtos);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<TicketDto> getTicketById(@PathVariable Long id) {
-        return ResponseEntity.ok(ticketService.toDto(ticketService.getTicketById(id)));
+    public ResponseEntity<TicketDto> getTicketById(
+            @PathVariable Long id,
+            @AuthenticationPrincipal OidcUser oidcUser) {
+        User currentUser = userService.getUserByOktaId(oidcUser.getSubject());
+        Ticket ticket = ticketService.getTicketForUser(id, currentUser);
+        return ResponseEntity.ok(ticketService.toDto(ticket, currentUser));
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<TicketDto> updateTicket(
             @PathVariable Long id,
-            @RequestBody UpdateTicketRequest request) {
-        Ticket ticket = ticketService.updateTicket(id, request);
-        return ResponseEntity.ok(ticketService.toDto(ticket));
+            @RequestBody UpdateTicketRequest request,
+            @AuthenticationPrincipal OidcUser oidcUser) {
+        User currentUser = userService.getUserByOktaId(oidcUser.getSubject());
+        Ticket ticket = ticketService.updateTicket(id, request, currentUser);
+        return ResponseEntity.ok(ticketService.toDto(ticket, currentUser));
     }
 
     @GetMapping("/status/{status}")
-    public ResponseEntity<List<TicketDto>> getTicketsByStatus(@PathVariable TicketStatus status) {
+    @PreAuthorize("hasAnyRole('SUPPORT_ADMIN', 'SUPPORT_MANAGER')")
+    public ResponseEntity<List<TicketDto>> getTicketsByStatus(
+            @PathVariable TicketStatus status,
+            @AuthenticationPrincipal OidcUser oidcUser) {
+        User currentUser = userService.getUserByOktaId(oidcUser.getSubject());
         List<TicketDto> dtos = ticketService.getTicketsByStatus(status).stream()
-                .map(ticketService::toDto)
+                .map(t -> ticketService.toDto(t, currentUser))
                 .toList();
         return ResponseEntity.ok(dtos);
     }

@@ -17,6 +17,22 @@ const colors = {
 const priorityColors = { LOW: colors.success, MEDIUM: colors.warning, HIGH: '#F97316', CRITICAL: colors.danger };
 const statusColors = { OPEN: colors.primary, IN_PROGRESS: colors.warning, RESOLVED: colors.success, CLOSED: colors.gray500 };
 
+const TICKET_CATEGORY_LABELS = {
+  GENERAL: 'General',
+  BILLING: 'Billing',
+  TECHNICAL: 'Technical',
+  ACCOUNT: 'Account',
+  PRODUCT_FEEDBACK: 'Product feedback',
+};
+
+const TICKET_CATEGORY_OPTIONS = [
+  ['GENERAL', 'General'],
+  ['BILLING', 'Billing'],
+  ['TECHNICAL', 'Technical'],
+  ['ACCOUNT', 'Account'],
+  ['PRODUCT_FEEDBACK', 'Product feedback'],
+];
+
 const styles = {
   heading: { fontSize: 24, fontWeight: 700, color: colors.gray900, marginBottom: 24 },
   grid: { display: 'grid', gridTemplateColumns: '1fr 380px', gap: 24, alignItems: 'start' },
@@ -48,16 +64,31 @@ const styles = {
     borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer', width: '100%',
   },
   label: { fontSize: 13, fontWeight: 600, color: colors.gray700, marginBottom: 6, display: 'block' },
+  filterBar: { display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' },
+  filterInput: {
+    flex: '1 1 200px', minWidth: 160, padding: '10px 14px', borderRadius: 8,
+    border: `1px solid ${colors.gray200}`, fontSize: 14, outline: 'none',
+  },
+  filterSelect: {
+    padding: '10px 14px', borderRadius: 8, border: `1px solid ${colors.gray200}`,
+    fontSize: 14, outline: 'none', background: '#fff', minWidth: 140,
+  },
+  metaHint: { fontSize: 13, color: colors.gray500, marginBottom: 12 },
   empty: { color: colors.gray500, fontSize: 14, textAlign: 'center', padding: 40 },
 };
 
 export default function UserPortal({ user }) {
   const navigate = useNavigate();
+  const staffRoles = ['support_executive', 'support_admin', 'support_manager'];
+  const isStaff = staffRoles.includes(user?.role);
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [form, setForm] = useState({ title: '', description: '', priority: 'MEDIUM' });
+  const [form, setForm] = useState({ title: '', description: '', priority: 'MEDIUM', category: 'GENERAL' });
   const [submitting, setSubmitting] = useState(false);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
 
   const fetchTickets = async () => {
     try {
@@ -73,13 +104,25 @@ export default function UserPortal({ user }) {
 
   useEffect(() => { fetchTickets(); }, []);
 
+  const normalized = (s) => (s || '').toLowerCase();
+  const filteredTickets = tickets.filter((t) => {
+    const matchesText =
+      !search.trim() ||
+      normalized(t.title).includes(normalized(search.trim())) ||
+      String(t.id).includes(search.trim());
+    const matchesStatus = !statusFilter || t.status === statusFilter;
+    const cat = t.category || 'GENERAL';
+    const matchesCategory = !categoryFilter || cat === categoryFilter;
+    return matchesText && matchesStatus && matchesCategory;
+  });
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.title.trim()) return;
     try {
       setSubmitting(true);
       await createTicket(form);
-      setForm({ title: '', description: '', priority: 'MEDIUM' });
+      setForm({ title: '', description: '', priority: 'MEDIUM', category: 'GENERAL' });
       fetchTickets();
     } catch {
       setError('Failed to create ticket');
@@ -93,14 +136,54 @@ export default function UserPortal({ user }) {
       <h1 style={styles.heading}>My Tickets</h1>
       <div style={styles.grid}>
         <div style={styles.card}>
+          <div style={styles.filterBar}>
+            <input
+              style={styles.filterInput}
+              type="search"
+              placeholder="Search by title or ticket #…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              aria-label="Search tickets"
+            />
+            <select
+              style={styles.filterSelect}
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              aria-label="Filter by status"
+            >
+              <option value="">All statuses</option>
+              <option value="OPEN">Open</option>
+              <option value="IN_PROGRESS">In progress</option>
+              <option value="RESOLVED">Resolved</option>
+              <option value="CLOSED">Closed</option>
+            </select>
+            <select
+              style={styles.filterSelect}
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              aria-label="Filter by category"
+            >
+              <option value="">All categories</option>
+              {TICKET_CATEGORY_OPTIONS.map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+          </div>
+          {tickets.length > 0 && (
+            <p style={styles.metaHint}>
+              Showing {filteredTickets.length} of {tickets.length} tickets
+            </p>
+          )}
           {loading ? (
             <div style={styles.empty}>Loading tickets...</div>
           ) : error ? (
             <div style={{ ...styles.empty, color: colors.danger }}>{error}</div>
           ) : tickets.length === 0 ? (
             <div style={styles.empty}>No tickets yet. Create your first ticket!</div>
+          ) : filteredTickets.length === 0 ? (
+            <div style={styles.empty}>No tickets match your filters.</div>
           ) : (
-            tickets.map((t) => (
+            filteredTickets.map((t) => (
               <div
                 key={t.id}
                 style={styles.ticketRow}
@@ -114,13 +197,32 @@ export default function UserPortal({ user }) {
                     #{t.id} &middot; {new Date(t.createdAt).toLocaleDateString()}
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                  {isStaff && t.escalated && (
+                    <span style={{
+                      ...styles.badge,
+                      background: `${colors.danger}22`,
+                      color: colors.danger,
+                      border: `1px solid ${colors.danger}44`,
+                    }}>
+                      Escalated
+                    </span>
+                  )}
                   <span style={{
                     ...styles.badge,
                     background: `${statusColors[t.status] || colors.gray500}18`,
                     color: statusColors[t.status] || colors.gray500,
                   }}>
                     {t.status?.replace('_', ' ')}
+                  </span>
+                  <span style={{
+                    ...styles.badge,
+                    background: colors.gray100,
+                    color: colors.gray700,
+                    border: `1px solid ${colors.gray200}`,
+                    textTransform: 'none',
+                  }}>
+                    {TICKET_CATEGORY_LABELS[t.category] || 'General'}
                   </span>
                   <span style={{
                     ...styles.badge,
@@ -154,6 +256,16 @@ export default function UserPortal({ user }) {
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
             />
+            <label style={styles.label}>Category</label>
+            <select
+              style={styles.select}
+              value={form.category}
+              onChange={(e) => setForm({ ...form, category: e.target.value })}
+            >
+              {TICKET_CATEGORY_OPTIONS.map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
             <label style={styles.label}>Priority</label>
             <select
               style={styles.select}

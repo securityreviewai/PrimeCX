@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getDashboard, getSessions, getRecordingsBySession } from '../services/api';
+import { getDashboard, getSessions, getRecordingsBySession, getTickets } from '../services/api';
 
 const colors = {
   primary: '#4F46E5', success: '#10B981', warning: '#F59E0B',
@@ -9,7 +9,7 @@ const colors = {
 
 const styles = {
   heading: { fontSize: 24, fontWeight: 700, color: colors.gray900, marginBottom: 24 },
-  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 32 },
+  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 16, marginBottom: 32 },
   statCard: {
     background: '#fff', borderRadius: 12, padding: '20px 24px',
     boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
@@ -39,11 +39,45 @@ const styles = {
     borderBottom: `2px solid ${colors.gray200}`,
   },
   td: { padding: '12px 14px', fontSize: 14, color: colors.gray700, borderBottom: `1px solid ${colors.gray100}` },
+  exportBtn: {
+    padding: '10px 18px', borderRadius: 8, border: 'none', fontSize: 14, fontWeight: 600,
+    cursor: 'pointer', color: '#fff', background: colors.primary,
+  },
+  exportBtnDisabled: {
+    opacity: 0.5, cursor: 'not-allowed',
+  },
 };
+
+function downloadTicketsCsv(ticketRows) {
+  const cols = ['id', 'title', 'status', 'priority', 'category', 'userName', 'assignedToName', 'escalated', 'supportReply', 'createdAt', 'updatedAt'];
+  const esc = (v) => {
+    const s = v == null ? '' : String(v);
+    if (/[",\r\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+    return s;
+  };
+  const lines = [cols.join(',')];
+  for (const t of ticketRows) {
+    lines.push(cols.map((key) => {
+      if (key === 'escalated') return esc(t.escalated ? 'yes' : 'no');
+      return esc(t[key]);
+    }).join(','));
+  }
+  const csv = `\uFEFF${lines.join('\r\n')}`;
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `primecx-tickets-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 
 export default function ManagerDashboard({ user }) {
   const [stats, setStats] = useState(null);
   const [sessions, setSessions] = useState([]);
+  const [tickets, setTickets] = useState([]);
   const [allRecordings, setAllRecordings] = useState([]);
   const [executiveFilter, setExecutiveFilter] = useState('');
   const [loading, setLoading] = useState(true);
@@ -53,9 +87,14 @@ export default function ManagerDashboard({ user }) {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const [dashRes, sessionsRes] = await Promise.all([getDashboard(), getSessions()]);
+        const [dashRes, sessionsRes, ticketsRes] = await Promise.all([
+          getDashboard(),
+          getSessions(),
+          getTickets(),
+        ]);
         setStats(dashRes.data);
         setSessions(sessionsRes.data);
+        setTickets(ticketsRes.data);
 
         const recs = [];
         for (const s of sessionsRes.data.slice(0, 20)) {
@@ -84,7 +123,20 @@ export default function ManagerDashboard({ user }) {
 
   return (
     <div>
-      <h1 style={styles.heading}>Manager Dashboard</h1>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 24 }}>
+        <h1 style={{ ...styles.heading, margin: 0 }}>Manager Dashboard</h1>
+        <button
+          type="button"
+          style={{
+            ...styles.exportBtn,
+            ...(!tickets.length ? styles.exportBtnDisabled : {}),
+          }}
+          disabled={!tickets.length}
+          onClick={() => downloadTicketsCsv(tickets)}
+        >
+          Export tickets CSV
+        </button>
+      </div>
 
       <div style={styles.statsGrid}>
         <div style={styles.statCard}>
@@ -94,6 +146,14 @@ export default function ManagerDashboard({ user }) {
         <div style={styles.statCard}>
           <div style={{ ...styles.statValue, color: colors.warning }}>{stats?.openTickets ?? 0}</div>
           <div style={styles.statLabel}>Open Tickets</div>
+        </div>
+        <div style={styles.statCard}>
+          <div style={{ ...styles.statValue, color: '#B91C1C' }}>{stats?.criticalOpenTickets ?? 0}</div>
+          <div style={styles.statLabel}>Open · Critical priority</div>
+        </div>
+        <div style={styles.statCard}>
+          <div style={{ ...styles.statValue, color: colors.danger }}>{stats?.openEscalatedTickets ?? 0}</div>
+          <div style={styles.statLabel}>Open · Escalated</div>
         </div>
         <div style={styles.statCard}>
           <div style={{ ...styles.statValue, color: colors.success }}>{stats?.activeSessions ?? 0}</div>

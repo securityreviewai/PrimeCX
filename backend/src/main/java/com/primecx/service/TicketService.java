@@ -10,7 +10,9 @@ import com.primecx.dto.CreateTicketRequest;
 import com.primecx.dto.TicketDto;
 import com.primecx.dto.UpdateTicketRequest;
 import com.primecx.exception.ResourceNotFoundException;
+import com.primecx.model.Role;
 import com.primecx.model.Ticket;
+import com.primecx.model.TicketCategory;
 import com.primecx.model.TicketStatus;
 import com.primecx.model.User;
 import com.primecx.repository.TicketRepository;
@@ -27,6 +29,30 @@ public class TicketService {
     private final TicketRepository ticketRepository;
     private final UserRepository userRepository;
 
+    private static boolean canViewInternalNotes(User viewer) {
+        Role r = viewer.getRole();
+        return r == Role.ROLE_SUPPORT_ADMIN
+                || r == Role.ROLE_SUPPORT_MANAGER
+                || r == Role.ROLE_SUPPORT_EXECUTIVE;
+    }
+
+    private void assertTicketVisibleToUser(Ticket ticket, User viewer) {
+        Role r = viewer.getRole();
+        if (r == Role.ROLE_SUPPORT_ADMIN || r == Role.ROLE_SUPPORT_MANAGER) {
+            return;
+        }
+        if (r == Role.ROLE_SUPPORT_EXECUTIVE) {
+            if (ticket.getAssignedTo() != null && ticket.getAssignedTo().getId().equals(viewer.getId())) {
+                return;
+            }
+            throw new ResourceNotFoundException("Ticket", ticket.getId());
+        }
+        if (ticket.getUser().getId().equals(viewer.getId())) {
+            return;
+        }
+        throw new ResourceNotFoundException("Ticket", ticket.getId());
+    }
+
     @Transactional
     public Ticket createTicket(CreateTicketRequest request, Long userId) {
         User user = userRepository.findById(userId)
@@ -36,6 +62,7 @@ public class TicketService {
         ticket.setTitle(request.title());
         ticket.setDescription(request.description());
         ticket.setPriority(request.priority());
+        ticket.setCategory(request.category() != null ? request.category() : TicketCategory.GENERAL);
         ticket.setStatus(TicketStatus.OPEN);
         ticket.setUser(user);
         ticket.setCreatedAt(LocalDateTime.now());
@@ -46,8 +73,9 @@ public class TicketService {
     }
 
     @Transactional
-    public Ticket updateTicket(Long ticketId, UpdateTicketRequest request) {
+    public Ticket updateTicket(Long ticketId, UpdateTicketRequest request, User currentUser) {
         Ticket ticket = getTicketById(ticketId);
+        assertTicketVisibleToUser(ticket, currentUser);
 
         if (request.title() != null) {
             ticket.setTitle(request.title());
@@ -66,6 +94,18 @@ public class TicketService {
                     .orElseThrow(() -> new ResourceNotFoundException("User", request.assignedToId()));
             ticket.setAssignedTo(assignee);
         }
+        if (request.internalNotes() != null && canViewInternalNotes(currentUser)) {
+            ticket.setInternalNotes(request.internalNotes());
+        }
+        if (request.escalated() != null && canViewInternalNotes(currentUser)) {
+            ticket.setEscalated(request.escalated());
+        }
+        if (request.supportReply() != null && canViewInternalNotes(currentUser)) {
+            ticket.setSupportReply(request.supportReply());
+        }
+        if (request.category() != null && canViewInternalNotes(currentUser)) {
+            ticket.setCategory(request.category());
+        }
 
         ticket.setUpdatedAt(LocalDateTime.now());
         return ticketRepository.save(ticket);
@@ -74,6 +114,12 @@ public class TicketService {
     public Ticket getTicketById(Long id) {
         return ticketRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Ticket", id));
+    }
+
+    public Ticket getTicketForUser(Long id, User viewer) {
+        Ticket ticket = getTicketById(id);
+        assertTicketVisibleToUser(ticket, viewer);
+        return ticket;
     }
 
     public List<Ticket> getTicketsByUser(Long userId) {
@@ -92,12 +138,14 @@ public class TicketService {
         return ticketRepository.findAll();
     }
 
-    public TicketDto toDto(Ticket ticket) {
+    public TicketDto toDto(Ticket ticket, User viewer) {
         String userName = ticket.getUser().getFirstName() + " " + ticket.getUser().getLastName();
         String assignedToName = ticket.getAssignedTo() != null
                 ? ticket.getAssignedTo().getFirstName() + " " + ticket.getAssignedTo().getLastName()
                 : null;
         Long assignedToId = ticket.getAssignedTo() != null ? ticket.getAssignedTo().getId() : null;
+        String internalNotes = canViewInternalNotes(viewer) ? ticket.getInternalNotes() : null;
+        boolean escalated = canViewInternalNotes(viewer) && ticket.isEscalated();
 
         return new TicketDto(
                 ticket.getId(),
@@ -105,12 +153,16 @@ public class TicketService {
                 ticket.getDescription(),
                 ticket.getStatus(),
                 ticket.getPriority(),
+                ticket.getCategory(),
                 ticket.getUser().getId(),
                 userName,
                 assignedToId,
                 assignedToName,
+                internalNotes,
+                ticket.getSupportReply(),
                 ticket.getCreatedAt(),
-                ticket.getUpdatedAt()
+                ticket.getUpdatedAt(),
+                escalated
         );
     }
 }

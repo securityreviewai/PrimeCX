@@ -37,6 +37,7 @@ api.interceptors.response.use(
 
 export const getMe = () => api.get('/users/me');
 export const getTickets = () => api.get('/tickets');
+export const getTicket = (id) => api.get(`/tickets/${id}`);
 export const createTicket = (data) => api.post('/tickets', data);
 export const updateTicket = (id, data) => api.put(`/tickets/${id}`, data);
 export const getSessions = () => api.get('/sessions');
@@ -47,7 +48,7 @@ export const getUploadUrl = (sessionId, fileName, contentType) =>
 export const confirmUpload = (data) => api.post('/recordings/confirm', data);
 export const getRecording = (id) => api.get(`/recordings/${id}`);
 export const getRecordingsBySession = (sessionId) => api.get(`/recordings/session/${sessionId}`);
-export const getDashboard = () => api.get('/dashboard');
+export const getDashboard = () => api.get('/admin/dashboard');
 export const getUsers = () => api.get('/users');
 export const updateUserRole = (id, role) => api.put(`/users/${id}/role`, { role });
 

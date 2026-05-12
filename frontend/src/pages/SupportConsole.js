@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getTickets, startSession, endSession, getUploadUrl } from '../services/api';
+import { getTickets, getSessions, startSession, endSession, getUploadUrl } from '../services/api';
 
 const colors = {
   primary: '#4F46E5', success: '#10B981', warning: '#F59E0B',
@@ -9,6 +9,14 @@ const colors = {
 };
 
 const statusColors = { OPEN: colors.primary, IN_PROGRESS: colors.warning, RESOLVED: colors.success, CLOSED: colors.gray500 };
+
+const CATEGORY_LABELS = {
+  GENERAL: 'General',
+  BILLING: 'Billing',
+  TECHNICAL: 'Technical',
+  ACCOUNT: 'Account',
+  PRODUCT_FEEDBACK: 'Product feedback',
+};
 
 const styles = {
   heading: { fontSize: 24, fontWeight: 700, color: colors.gray900, marginBottom: 24 },
@@ -47,6 +55,10 @@ const styles = {
     border: `2px dashed ${colors.gray200}`, borderRadius: 8, padding: 20,
     textAlign: 'center', marginTop: 16, color: colors.gray500, fontSize: 14, cursor: 'pointer',
   },
+  restoreBanner: {
+    background: `${colors.primary}12`, color: colors.primary, padding: '10px 14px',
+    borderRadius: 8, fontSize: 13, fontWeight: 600, marginBottom: 16, border: `1px solid ${colors.primary}33`,
+  },
 };
 
 function formatDuration(seconds) {
@@ -54,6 +66,22 @@ function formatDuration(seconds) {
   const m = Math.floor((seconds % 3600) / 60);
   const s = seconds % 60;
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+/** Elapsed seconds since session startTime from API (ISO string or Jackson date array). */
+function elapsedSecondsFromStartTime(startTime) {
+  if (!startTime) return 0;
+  let ms;
+  if (typeof startTime === 'string') {
+    ms = Date.parse(startTime);
+  } else if (Array.isArray(startTime)) {
+    const [y, mon, d, h = 0, min = 0, sec = 0] = startTime;
+    ms = new Date(y, mon - 1, d, h, min, sec).getTime();
+  } else {
+    return 0;
+  }
+  if (Number.isNaN(ms)) return 0;
+  return Math.max(0, Math.floor((Date.now() - ms) / 1000));
 }
 
 export default function SupportConsole({ user }) {
@@ -66,21 +94,32 @@ export default function SupportConsole({ user }) {
   const [endNotes, setEndNotes] = useState('');
   const [ending, setEnding] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(null);
+  const [sessionRestored, setSessionRestored] = useState(false);
   const timerRef = useRef(null);
 
   useEffect(() => {
-    const fetch = async () => {
+    const load = async () => {
       try {
-        const res = await getTickets();
-        setTickets(res.data);
+        setLoading(true);
+        const [ticketsRes, sessionsRes] = await Promise.all([getTickets(), getSessions()]);
+        setTickets(ticketsRes.data);
+
+        const active = sessionsRes.data.find(
+          (s) => s.status === 'ACTIVE' && !s.endTime,
+        );
+        if (active && user?.role === 'support_executive') {
+          setActiveSession(active);
+          setElapsed(elapsedSecondsFromStartTime(active.startTime));
+          setSessionRestored(true);
+        }
       } catch {
         setError('Failed to load tickets');
       } finally {
         setLoading(false);
       }
     };
-    fetch();
-  }, []);
+    load();
+  }, [user?.role]);
 
   useEffect(() => {
     if (activeSession) {
@@ -93,7 +132,8 @@ export default function SupportConsole({ user }) {
     try {
       const res = await startSession({ ticketId });
       setActiveSession(res.data);
-      setElapsed(0);
+      setElapsed(elapsedSecondsFromStartTime(res.data.startTime));
+      setSessionRestored(false);
     } catch {
       setError('Failed to start session');
     }
@@ -107,6 +147,7 @@ export default function SupportConsole({ user }) {
       setActiveSession(null);
       setElapsed(0);
       setEndNotes('');
+      setSessionRestored(false);
       clearInterval(timerRef.current);
     } catch {
       setError('Failed to end session');
@@ -151,6 +192,7 @@ export default function SupportConsole({ user }) {
                   <div style={{ fontWeight: 600, fontSize: 14 }}>{t.title}</div>
                   <div style={{ fontSize: 12, color: colors.gray500, marginTop: 2 }}>
                     #{t.id}
+                    {t.category ? ` · ${CATEGORY_LABELS[t.category] || t.category}` : ''}
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -178,6 +220,11 @@ export default function SupportConsole({ user }) {
         <div>
           {activeSession ? (
             <div style={styles.sessionPanel}>
+              {sessionRestored && (
+                <div style={styles.restoreBanner}>
+                  Resumed your in-progress session. Timer shows time since the session started.
+                </div>
+              )}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                 <h3 style={{ ...styles.cardTitle, margin: 0, color: colors.primary }}>Active Session</h3>
                 <div style={{ display: 'flex', alignItems: 'center', fontSize: 13, fontWeight: 600, color: colors.danger }}>
