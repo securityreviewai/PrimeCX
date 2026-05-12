@@ -147,6 +147,10 @@ export default function AdminPanel({ user }) {
           <div style={styles.statLabel}>Open · Escalated</div>
         </div>
         <div style={styles.statCard}>
+          <div style={{ ...styles.statValue, color: '#C2410C' }}>{stats?.openTicketsPastFollowUpDue ?? 0}</div>
+          <div style={styles.statLabel}>Open · Past follow-up due</div>
+        </div>
+        <div style={styles.statCard}>
           <div style={{ ...styles.statValue, color: colors.success }}>{users.length}</div>
           <div style={styles.statLabel}>Total Users</div>
         </div>

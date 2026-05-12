@@ -33,6 +33,14 @@ const TICKET_CATEGORY_OPTIONS = [
   ['PRODUCT_FEEDBACK', 'Product feedback'],
 ];
 
+function ticketFollowUpOverdue(t) {
+  if (!t?.followUpDueAt) return false;
+  const due = new Date(t.followUpDueAt).getTime();
+  if (Number.isNaN(due)) return false;
+  if (!['OPEN', 'IN_PROGRESS'].includes(t.status)) return false;
+  return Date.now() > due;
+}
+
 const styles = {
   heading: { fontSize: 24, fontWeight: 700, color: colors.gray900, marginBottom: 24 },
   grid: { display: 'grid', gridTemplateColumns: '1fr 380px', gap: 24, alignItems: 'start' },
@@ -198,6 +206,16 @@ export default function UserPortal({ user }) {
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                  {isStaff && ticketFollowUpOverdue(t) && (
+                    <span style={{
+                      ...styles.badge,
+                      background: `${colors.danger}18`,
+                      color: colors.danger,
+                      textTransform: 'none',
+                    }}>
+                      Follow-up overdue
+                    </span>
+                  )}
                   {isStaff && t.escalated && (
                     <span style={{
                       ...styles.badge,

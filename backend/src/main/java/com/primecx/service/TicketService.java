@@ -107,8 +107,42 @@ public class TicketService {
             ticket.setCategory(request.category());
         }
 
+        if (Boolean.TRUE.equals(request.clearFollowUpDueAt()) && canViewInternalNotes(currentUser)) {
+            ticket.setFollowUpDueAt(null);
+        } else if (request.followUpDueAt() != null && canViewInternalNotes(currentUser)) {
+            ticket.setFollowUpDueAt(request.followUpDueAt());
+        }
+
+        if (request.satisfactionRating() != null
+                || (request.satisfactionComment() != null && !request.satisfactionComment().isBlank())) {
+            applyCustomerSatisfaction(ticket, currentUser, request.satisfactionRating(), request.satisfactionComment());
+        }
+
         ticket.setUpdatedAt(LocalDateTime.now());
         return ticketRepository.save(ticket);
+    }
+
+    private static void applyCustomerSatisfaction(
+            Ticket ticket, User viewer, Integer rating, String comment) {
+        if (viewer.getRole() != Role.ROLE_USER) {
+            throw new IllegalArgumentException("Only customers may submit satisfaction feedback");
+        }
+        if (!viewer.getId().equals(ticket.getUser().getId())) {
+            throw new IllegalArgumentException("You can only rate your own tickets");
+        }
+        if (ticket.getStatus() != TicketStatus.RESOLVED && ticket.getStatus() != TicketStatus.CLOSED) {
+            throw new IllegalArgumentException("Satisfaction can be submitted only after the ticket is resolved or closed");
+        }
+        if (ticket.getSatisfactionRating() != null) {
+            throw new IllegalArgumentException("Feedback has already been submitted for this ticket");
+        }
+        if (rating == null || rating < 1 || rating > 5) {
+            throw new IllegalArgumentException("Satisfaction rating must be between 1 and 5");
+        }
+        ticket.setSatisfactionRating(rating);
+        if (comment != null && !comment.isBlank()) {
+            ticket.setSatisfactionComment(comment.trim());
+        }
     }
 
     public Ticket getTicketById(Long id) {
@@ -162,7 +196,10 @@ public class TicketService {
                 ticket.getSupportReply(),
                 ticket.getCreatedAt(),
                 ticket.getUpdatedAt(),
-                escalated
+                escalated,
+                ticket.getFollowUpDueAt(),
+                ticket.getSatisfactionRating(),
+                ticket.getSatisfactionComment()
         );
     }
 }

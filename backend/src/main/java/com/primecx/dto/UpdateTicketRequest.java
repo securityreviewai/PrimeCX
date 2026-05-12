@@ -4,7 +4,7 @@ import com.primecx.model.TicketCategory;
 import com.primecx.model.TicketPriority;
 import com.primecx.model.TicketStatus;
 
-public record UpdateTicketRequest(
+import java.time.LocalDateTime;
         String title,
         String description,
         TicketStatus status,
@@ -13,5 +13,9 @@ public record UpdateTicketRequest(
         String internalNotes,
         Boolean escalated,
         String supportReply,
-        TicketCategory category
+        TicketCategory category,
+        LocalDateTime followUpDueAt,
+        Boolean clearFollowUpDueAt,
+        Integer satisfactionRating,
+        String satisfactionComment
 ) {}

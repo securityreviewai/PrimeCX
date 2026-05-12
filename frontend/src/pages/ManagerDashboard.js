@@ -49,7 +49,7 @@ const styles = {
 };
 
 function downloadTicketsCsv(ticketRows) {
-  const cols = ['id', 'title', 'status', 'priority', 'category', 'userName', 'assignedToName', 'escalated', 'supportReply', 'createdAt', 'updatedAt'];
+  const cols = ['id', 'title', 'status', 'priority', 'category', 'userName', 'assignedToName', 'escalated', 'supportReply', 'followUpDueAt', 'satisfactionRating', 'satisfactionComment', 'createdAt', 'updatedAt'];
   const esc = (v) => {
     const s = v == null ? '' : String(v);
     if (/[",\r\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
@@ -154,6 +154,10 @@ export default function ManagerDashboard({ user }) {
         <div style={styles.statCard}>
           <div style={{ ...styles.statValue, color: colors.danger }}>{stats?.openEscalatedTickets ?? 0}</div>
           <div style={styles.statLabel}>Open · Escalated</div>
+        </div>
+        <div style={styles.statCard}>
+          <div style={{ ...styles.statValue, color: '#C2410C' }}>{stats?.openTicketsPastFollowUpDue ?? 0}</div>
+          <div style={styles.statLabel}>Open · Past follow-up</div>
         </div>
         <div style={styles.statCard}>
           <div style={{ ...styles.statValue, color: colors.success }}>{stats?.activeSessions ?? 0}</div>
