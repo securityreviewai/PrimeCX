@@ -9,5 +9,6 @@ public record UpdateTicketRequest(
         TicketStatus status,
         TicketPriority priority,
         Long assignedToId,
-        String internalNotes
+        String internalNotes,
+        Boolean escalated
 ) {}

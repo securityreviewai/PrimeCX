@@ -17,5 +17,6 @@ public record TicketDto(
         String assignedToName,
         String internalNotes,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        boolean escalated
 ) {}

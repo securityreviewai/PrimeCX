@@ -11,7 +11,7 @@ const statusColors = { OPEN: colors.primary, IN_PROGRESS: colors.warning, RESOLV
 
 const styles = {
   heading: { fontSize: 24, fontWeight: 700, color: colors.gray900, marginBottom: 24 },
-  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 32 },
+  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 16, marginBottom: 32 },
   statCard: {
     background: '#fff', borderRadius: 12, padding: '20px 24px',
     boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
@@ -135,6 +135,10 @@ export default function AdminPanel({ user }) {
           <div style={styles.statLabel}>Open Tickets</div>
         </div>
         <div style={styles.statCard}>
+          <div style={{ ...styles.statValue, color: colors.danger }}>{stats?.openEscalatedTickets ?? 0}</div>
+          <div style={styles.statLabel}>Open · Escalated</div>
+        </div>
+        <div style={styles.statCard}>
           <div style={{ ...styles.statValue, color: colors.success }}>{users.length}</div>
           <div style={styles.statLabel}>Total Users</div>
         </div>
@@ -221,6 +225,7 @@ export default function AdminPanel({ user }) {
                 <th style={styles.th}>Title</th>
                 <th style={styles.th}>Priority</th>
                 <th style={styles.th}>Status</th>
+                <th style={styles.th}>Escalated</th>
                 <th style={styles.th}>Created</th>
               </tr>
             </thead>
@@ -246,6 +251,17 @@ export default function AdminPanel({ user }) {
                     }}>
                       {t.status?.replace('_', ' ')}
                     </span>
+                  </td>
+                  <td style={styles.td}>
+                    {t.escalated ? (
+                      <span style={{
+                        ...styles.badge,
+                        background: `${colors.danger}22`,
+                        color: colors.danger,
+                      }}>Yes</span>
+                    ) : (
+                      <span style={{ fontSize: 13, color: colors.gray500 }}>—</span>
+                    )}
                   </td>
                   <td style={styles.td}>{t.createdAt ? new Date(t.createdAt).toLocaleDateString() : '—'}</td>
                 </tr>

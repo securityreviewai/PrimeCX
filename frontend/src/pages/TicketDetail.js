@@ -59,6 +59,10 @@ const styles = {
     border: `1px solid ${colors.gray200}`, borderRadius: 8, padding: '6px 12px',
     cursor: 'pointer', marginTop: 8,
   },
+  escalationRow: {
+    display: 'flex', alignItems: 'center', gap: 10, marginTop: 12, fontSize: 14,
+    color: colors.gray700, cursor: 'pointer', userSelect: 'none',
+  },
   wrapUpBody: {
     fontSize: 14, color: colors.gray700, lineHeight: 1.65, whiteSpace: 'pre-wrap',
     background: colors.gray100, padding: 14, borderRadius: 8, border: `1px solid ${colors.gray200}`,
@@ -78,6 +82,7 @@ export default function TicketDetail({ user }) {
   const [internalNotes, setInternalNotes] = useState('');
   const [notesSaving, setNotesSaving] = useState(false);
   const [copyDone, setCopyDone] = useState(false);
+  const [escalationSaving, setEscalationSaving] = useState(false);
 
   const staffRoles = ['support_executive', 'support_admin', 'support_manager'];
   const canChangeStatus = staffRoles.includes(user?.role);
@@ -153,6 +158,21 @@ export default function TicketDetail({ user }) {
     }
   };
 
+  const handleEscalationToggle = async (e) => {
+    if (!canEditInternalNotes) return;
+    const next = e.target.checked;
+    try {
+      setEscalationSaving(true);
+      setError(null);
+      await updateTicket(id, { escalated: next });
+      setTicket({ ...ticket, escalated: next });
+    } catch {
+      setError('Failed to update escalation flag');
+    } finally {
+      setEscalationSaving(false);
+    }
+  };
+
   const handleCopyReference = async () => {
     if (!ticket) return;
     const line = `#${ticket.id} · ${ticket.title}`;
@@ -195,6 +215,15 @@ export default function TicketDetail({ user }) {
           }}>
             {ticket.priority}
           </span>
+          {canEditInternalNotes && ticket.escalated && (
+            <span style={{
+              ...styles.badge,
+              background: `${colors.danger}22`,
+              color: colors.danger,
+            }}>
+              Escalated
+            </span>
+          )}
           <span style={{ fontSize: 13, color: colors.gray500, alignSelf: 'center' }}>
             Created {new Date(ticket.createdAt).toLocaleDateString()}
           </span>
@@ -203,6 +232,21 @@ export default function TicketDetail({ user }) {
         <button type="button" style={styles.copyBtn} onClick={handleCopyReference}>
           {copyDone ? 'Copied!' : 'Copy reference (ID, title & link)'}
         </button>
+
+        {canEditInternalNotes && (
+          <label style={styles.escalationRow}>
+            <input
+              type="checkbox"
+              checked={!!ticket.escalated}
+              onChange={handleEscalationToggle}
+              disabled={escalationSaving}
+            />
+            <span>
+              Escalated to leadership review
+              {escalationSaving ? ' (saving…)' : ''}
+            </span>
+          </label>
+        )}
 
         <p style={styles.description}>{ticket.description || 'No description provided.'}</p>
 

@@ -95,6 +95,9 @@ public class TicketService {
         if (request.internalNotes() != null && canViewInternalNotes(currentUser)) {
             ticket.setInternalNotes(request.internalNotes());
         }
+        if (request.escalated() != null && canViewInternalNotes(currentUser)) {
+            ticket.setEscalated(request.escalated());
+        }
 
         ticket.setUpdatedAt(LocalDateTime.now());
         return ticketRepository.save(ticket);
@@ -134,6 +137,7 @@ public class TicketService {
                 : null;
         Long assignedToId = ticket.getAssignedTo() != null ? ticket.getAssignedTo().getId() : null;
         String internalNotes = canViewInternalNotes(viewer) ? ticket.getInternalNotes() : null;
+        boolean escalated = canViewInternalNotes(viewer) && ticket.isEscalated();
 
         return new TicketDto(
                 ticket.getId(),
@@ -147,7 +151,8 @@ public class TicketService {
                 assignedToName,
                 internalNotes,
                 ticket.getCreatedAt(),
-                ticket.getUpdatedAt()
+                ticket.getUpdatedAt(),
+                escalated
         );
     }
 }

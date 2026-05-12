@@ -63,6 +63,8 @@ const styles = {
 
 export default function UserPortal({ user }) {
   const navigate = useNavigate();
+  const staffRoles = ['support_executive', 'support_admin', 'support_manager'];
+  const isStaff = staffRoles.includes(user?.role);
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -165,7 +167,17 @@ export default function UserPortal({ user }) {
                     #{t.id} &middot; {new Date(t.createdAt).toLocaleDateString()}
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                  {isStaff && t.escalated && (
+                    <span style={{
+                      ...styles.badge,
+                      background: `${colors.danger}22`,
+                      color: colors.danger,
+                      border: `1px solid ${colors.danger}44`,
+                    }}>
+                      Escalated
+                    </span>
+                  )}
                   <span style={{
                     ...styles.badge,
                     background: `${statusColors[t.status] || colors.gray500}18`,

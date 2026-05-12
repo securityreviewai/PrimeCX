@@ -26,11 +26,18 @@ public class DashboardService {
         long totalTickets = ticketRepository.count();
         long openTickets = ticketRepository.countByStatus(TicketStatus.OPEN);
         long criticalOpenTickets = ticketRepository.countByStatusAndPriority(TicketStatus.OPEN, TicketPriority.CRITICAL);
+        long openEscalatedTickets = ticketRepository.countByEscalatedTrueAndStatus(TicketStatus.OPEN);
         long activeSessions = supportSessionRepository.countByStatus(SessionStatus.ACTIVE);
         long totalRecordings = recordingRepository.count();
         long totalUsers = userRepository.count();
 
         return new DashboardStats(
-                totalTickets, openTickets, criticalOpenTickets, activeSessions, totalRecordings, totalUsers);
+                totalTickets,
+                openTickets,
+                criticalOpenTickets,
+                openEscalatedTickets,
+                activeSessions,
+                totalRecordings,
+                totalUsers);
     }
 }

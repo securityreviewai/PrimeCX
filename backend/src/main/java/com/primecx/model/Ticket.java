@@ -47,6 +47,10 @@ public class Ticket {
     @Column(name = "internal_notes", columnDefinition = "TEXT")
     private String internalNotes;
 
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean escalated = false;
+
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;
