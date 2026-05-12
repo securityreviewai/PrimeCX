@@ -35,6 +35,10 @@ public class Ticket {
     @Builder.Default
     private TicketPriority priority = TicketPriority.MEDIUM;
 
+    @Enumerated(EnumType.STRING)
+    @Builder.Default
+    private TicketCategory category = TicketCategory.GENERAL;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
@@ -50,6 +54,10 @@ public class Ticket {
     @Column(nullable = false)
     @Builder.Default
     private boolean escalated = false;
+
+    @Lob
+    @Column(name = "support_reply", columnDefinition = "TEXT")
+    private String supportReply;
 
     private LocalDateTime createdAt;
 

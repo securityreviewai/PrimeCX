@@ -10,6 +10,14 @@ const colors = {
 
 const statusColors = { OPEN: colors.primary, IN_PROGRESS: colors.warning, RESOLVED: colors.success, CLOSED: colors.gray500 };
 
+const CATEGORY_LABELS = {
+  GENERAL: 'General',
+  BILLING: 'Billing',
+  TECHNICAL: 'Technical',
+  ACCOUNT: 'Account',
+  PRODUCT_FEEDBACK: 'Product feedback',
+};
+
 const styles = {
   heading: { fontSize: 24, fontWeight: 700, color: colors.gray900, marginBottom: 24 },
   grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, alignItems: 'start' },
@@ -184,6 +192,7 @@ export default function SupportConsole({ user }) {
                   <div style={{ fontWeight: 600, fontSize: 14 }}>{t.title}</div>
                   <div style={{ fontSize: 12, color: colors.gray500, marginTop: 2 }}>
                     #{t.id}
+                    {t.category ? ` · ${CATEGORY_LABELS[t.category] || t.category}` : ''}
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>

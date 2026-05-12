@@ -17,6 +17,22 @@ const colors = {
 const priorityColors = { LOW: colors.success, MEDIUM: colors.warning, HIGH: '#F97316', CRITICAL: colors.danger };
 const statusColors = { OPEN: colors.primary, IN_PROGRESS: colors.warning, RESOLVED: colors.success, CLOSED: colors.gray500 };
 
+const TICKET_CATEGORY_LABELS = {
+  GENERAL: 'General',
+  BILLING: 'Billing',
+  TECHNICAL: 'Technical',
+  ACCOUNT: 'Account',
+  PRODUCT_FEEDBACK: 'Product feedback',
+};
+
+const TICKET_CATEGORY_OPTIONS = [
+  ['GENERAL', 'General'],
+  ['BILLING', 'Billing'],
+  ['TECHNICAL', 'Technical'],
+  ['ACCOUNT', 'Account'],
+  ['PRODUCT_FEEDBACK', 'Product feedback'],
+];
+
 const styles = {
   heading: { fontSize: 24, fontWeight: 700, color: colors.gray900, marginBottom: 24 },
   grid: { display: 'grid', gridTemplateColumns: '1fr 380px', gap: 24, alignItems: 'start' },
@@ -68,10 +84,11 @@ export default function UserPortal({ user }) {
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [form, setForm] = useState({ title: '', description: '', priority: 'MEDIUM' });
+  const [form, setForm] = useState({ title: '', description: '', priority: 'MEDIUM', category: 'GENERAL' });
   const [submitting, setSubmitting] = useState(false);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
 
   const fetchTickets = async () => {
     try {
@@ -94,7 +111,9 @@ export default function UserPortal({ user }) {
       normalized(t.title).includes(normalized(search.trim())) ||
       String(t.id).includes(search.trim());
     const matchesStatus = !statusFilter || t.status === statusFilter;
-    return matchesText && matchesStatus;
+    const cat = t.category || 'GENERAL';
+    const matchesCategory = !categoryFilter || cat === categoryFilter;
+    return matchesText && matchesStatus && matchesCategory;
   });
 
   const handleSubmit = async (e) => {
@@ -103,7 +122,7 @@ export default function UserPortal({ user }) {
     try {
       setSubmitting(true);
       await createTicket(form);
-      setForm({ title: '', description: '', priority: 'MEDIUM' });
+      setForm({ title: '', description: '', priority: 'MEDIUM', category: 'GENERAL' });
       fetchTickets();
     } catch {
       setError('Failed to create ticket');
@@ -137,6 +156,17 @@ export default function UserPortal({ user }) {
               <option value="IN_PROGRESS">In progress</option>
               <option value="RESOLVED">Resolved</option>
               <option value="CLOSED">Closed</option>
+            </select>
+            <select
+              style={styles.filterSelect}
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              aria-label="Filter by category"
+            >
+              <option value="">All categories</option>
+              {TICKET_CATEGORY_OPTIONS.map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
             </select>
           </div>
           {tickets.length > 0 && (
@@ -187,6 +217,15 @@ export default function UserPortal({ user }) {
                   </span>
                   <span style={{
                     ...styles.badge,
+                    background: colors.gray100,
+                    color: colors.gray700,
+                    border: `1px solid ${colors.gray200}`,
+                    textTransform: 'none',
+                  }}>
+                    {TICKET_CATEGORY_LABELS[t.category] || 'General'}
+                  </span>
+                  <span style={{
+                    ...styles.badge,
                     background: `${priorityColors[t.priority] || colors.gray500}18`,
                     color: priorityColors[t.priority] || colors.gray500,
                   }}>
@@ -217,6 +256,16 @@ export default function UserPortal({ user }) {
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
             />
+            <label style={styles.label}>Category</label>
+            <select
+              style={styles.select}
+              value={form.category}
+              onChange={(e) => setForm({ ...form, category: e.target.value })}
+            >
+              {TICKET_CATEGORY_OPTIONS.map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
             <label style={styles.label}>Priority</label>
             <select
               style={styles.select}

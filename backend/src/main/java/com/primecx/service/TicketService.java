@@ -12,6 +12,7 @@ import com.primecx.dto.UpdateTicketRequest;
 import com.primecx.exception.ResourceNotFoundException;
 import com.primecx.model.Role;
 import com.primecx.model.Ticket;
+import com.primecx.model.TicketCategory;
 import com.primecx.model.TicketStatus;
 import com.primecx.model.User;
 import com.primecx.repository.TicketRepository;
@@ -61,6 +62,7 @@ public class TicketService {
         ticket.setTitle(request.title());
         ticket.setDescription(request.description());
         ticket.setPriority(request.priority());
+        ticket.setCategory(request.category() != null ? request.category() : TicketCategory.GENERAL);
         ticket.setStatus(TicketStatus.OPEN);
         ticket.setUser(user);
         ticket.setCreatedAt(LocalDateTime.now());
@@ -97,6 +99,12 @@ public class TicketService {
         }
         if (request.escalated() != null && canViewInternalNotes(currentUser)) {
             ticket.setEscalated(request.escalated());
+        }
+        if (request.supportReply() != null && canViewInternalNotes(currentUser)) {
+            ticket.setSupportReply(request.supportReply());
+        }
+        if (request.category() != null && canViewInternalNotes(currentUser)) {
+            ticket.setCategory(request.category());
         }
 
         ticket.setUpdatedAt(LocalDateTime.now());
@@ -145,11 +153,13 @@ public class TicketService {
                 ticket.getDescription(),
                 ticket.getStatus(),
                 ticket.getPriority(),
+                ticket.getCategory(),
                 ticket.getUser().getId(),
                 userName,
                 assignedToId,
                 assignedToName,
                 internalNotes,
+                ticket.getSupportReply(),
                 ticket.getCreatedAt(),
                 ticket.getUpdatedAt(),
                 escalated

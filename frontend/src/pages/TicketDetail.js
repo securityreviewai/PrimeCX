@@ -11,6 +11,22 @@ const colors = {
 const priorityColors = { LOW: colors.success, MEDIUM: colors.warning, HIGH: '#F97316', CRITICAL: colors.danger };
 const statusColors = { OPEN: colors.primary, IN_PROGRESS: colors.warning, RESOLVED: colors.success, CLOSED: colors.gray500 };
 
+const TICKET_CATEGORY_LABELS = {
+  GENERAL: 'General',
+  BILLING: 'Billing',
+  TECHNICAL: 'Technical',
+  ACCOUNT: 'Account',
+  PRODUCT_FEEDBACK: 'Product feedback',
+};
+
+const TICKET_CATEGORY_OPTIONS = [
+  ['GENERAL', 'General'],
+  ['BILLING', 'Billing'],
+  ['TECHNICAL', 'Technical'],
+  ['ACCOUNT', 'Account'],
+  ['PRODUCT_FEEDBACK', 'Product feedback'],
+];
+
 function sessionEndedAtMs(s) {
   if (!s?.endTime) return 0;
   const t = new Date(s.endTime).getTime();
@@ -67,6 +83,13 @@ const styles = {
     fontSize: 14, color: colors.gray700, lineHeight: 1.65, whiteSpace: 'pre-wrap',
     background: colors.gray100, padding: 14, borderRadius: 8, border: `1px solid ${colors.gray200}`,
   },
+  supportReplyPublic: {
+    marginBottom: 20, padding: 16, background: `${colors.primary}0d`, borderRadius: 12,
+    border: `1px solid ${colors.primary}33`,
+  },
+  staffSplitRow: {
+    display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end', marginTop: 12,
+  },
 };
 
 export default function TicketDetail({ user }) {
@@ -83,6 +106,10 @@ export default function TicketDetail({ user }) {
   const [notesSaving, setNotesSaving] = useState(false);
   const [copyDone, setCopyDone] = useState(false);
   const [escalationSaving, setEscalationSaving] = useState(false);
+  const [supportReplyText, setSupportReplyText] = useState('');
+  const [supportReplySaving, setSupportReplySaving] = useState(false);
+  const [categoryEdit, setCategoryEdit] = useState('GENERAL');
+  const [categorySaving, setCategorySaving] = useState(false);
 
   const staffRoles = ['support_executive', 'support_admin', 'support_manager'];
   const canChangeStatus = staffRoles.includes(user?.role);
@@ -106,6 +133,8 @@ export default function TicketDetail({ user }) {
         setTicket(found);
         setStatusUpdate(found.status);
         setInternalNotes(found.internalNotes || '');
+        setSupportReplyText(found.supportReply || '');
+        setCategoryEdit(found.category || 'GENERAL');
 
         const ticketSessions = sessionsRes.data.filter((s) => String(s.ticketId) === String(found.id));
         setSessions(ticketSessions);
@@ -173,6 +202,34 @@ export default function TicketDetail({ user }) {
     }
   };
 
+  const handleSaveSupportReply = async () => {
+    if (!canEditInternalNotes) return;
+    try {
+      setSupportReplySaving(true);
+      setError(null);
+      await updateTicket(id, { supportReply: supportReplyText });
+      setTicket({ ...ticket, supportReply: supportReplyText });
+    } catch {
+      setError('Failed to save support reply');
+    } finally {
+      setSupportReplySaving(false);
+    }
+  };
+
+  const handleSaveCategory = async () => {
+    if (!canEditInternalNotes) return;
+    try {
+      setCategorySaving(true);
+      setError(null);
+      await updateTicket(id, { category: categoryEdit });
+      setTicket({ ...ticket, category: categoryEdit });
+    } catch {
+      setError('Failed to update category');
+    } finally {
+      setCategorySaving(false);
+    }
+  };
+
   const handleCopyReference = async () => {
     if (!ticket) return;
     const line = `#${ticket.id} · ${ticket.title}`;
@@ -215,6 +272,15 @@ export default function TicketDetail({ user }) {
           }}>
             {ticket.priority}
           </span>
+          <span style={{
+            ...styles.badge,
+            background: colors.gray100,
+            color: colors.gray700,
+            border: `1px solid ${colors.gray200}`,
+            textTransform: 'none',
+          }}>
+            {TICKET_CATEGORY_LABELS[ticket.category] || 'General'}
+          </span>
           {canEditInternalNotes && ticket.escalated && (
             <span style={{
               ...styles.badge,
@@ -249,6 +315,48 @@ export default function TicketDetail({ user }) {
         )}
 
         <p style={styles.description}>{ticket.description || 'No description provided.'}</p>
+
+        {ticket.supportReply && String(ticket.supportReply).trim() && (
+          <div style={styles.supportReplyPublic}>
+            <h3 style={{ ...styles.sectionTitle, marginTop: 0 }}>Message from support</h3>
+            <div style={{ ...styles.wrapUpBody, background: '#fff' }}>{ticket.supportReply.trim()}</div>
+          </div>
+        )}
+
+        {canEditInternalNotes && (
+          <div style={{ paddingTop: 8, marginBottom: 16, borderTop: `1px solid ${colors.gray100}` }}>
+            <h3 style={{ fontSize: 15, fontWeight: 700, color: colors.gray900, marginBottom: 8 }}>
+              Customer-visible reply
+            </h3>
+            <p style={styles.hint}>Customers see this on the ticket. Uses the same field as “Message from support” above.</p>
+            <textarea
+              style={styles.notesArea}
+              value={supportReplyText}
+              onChange={(e) => setSupportReplyText(e.target.value)}
+              placeholder="Updates, next steps, or answers for the customer…"
+            />
+            <button type="button" style={styles.btn} onClick={handleSaveSupportReply} disabled={supportReplySaving}>
+              {supportReplySaving ? 'Saving…' : 'Save reply'}
+            </button>
+            <div style={styles.staffSplitRow}>
+              <div>
+                <span style={{ fontSize: 13, fontWeight: 600, color: colors.gray700, display: 'block', marginBottom: 6 }}>Category</span>
+                <select
+                  style={styles.select}
+                  value={categoryEdit}
+                  onChange={(e) => setCategoryEdit(e.target.value)}
+                >
+                  {TICKET_CATEGORY_OPTIONS.map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+              </div>
+              <button type="button" style={styles.btn} onClick={handleSaveCategory} disabled={categorySaving}>
+                {categorySaving ? 'Saving…' : 'Save category'}
+              </button>
+            </div>
+          </div>
+        )}
 
         {canChangeStatus && (
           <div style={{ display: 'flex', alignItems: 'center', paddingTop: 12, borderTop: `1px solid ${colors.gray100}` }}>

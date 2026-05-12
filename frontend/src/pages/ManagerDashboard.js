@@ -49,7 +49,7 @@ const styles = {
 };
 
 function downloadTicketsCsv(ticketRows) {
-  const cols = ['id', 'title', 'status', 'priority', 'userName', 'assignedToName', 'escalated', 'createdAt', 'updatedAt'];
+  const cols = ['id', 'title', 'status', 'priority', 'category', 'userName', 'assignedToName', 'escalated', 'supportReply', 'createdAt', 'updatedAt'];
   const esc = (v) => {
     const s = v == null ? '' : String(v);
     if (/[",\r\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;

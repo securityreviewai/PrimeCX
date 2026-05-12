@@ -9,6 +9,14 @@ const colors = {
 
 const statusColors = { OPEN: colors.primary, IN_PROGRESS: colors.warning, RESOLVED: colors.success, CLOSED: colors.gray500 };
 
+const CATEGORY_LABELS = {
+  GENERAL: 'General',
+  BILLING: 'Billing',
+  TECHNICAL: 'Technical',
+  ACCOUNT: 'Account',
+  PRODUCT_FEEDBACK: 'Product feedback',
+};
+
 const styles = {
   heading: { fontSize: 24, fontWeight: 700, color: colors.gray900, marginBottom: 24 },
   statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 16, marginBottom: 32 },
@@ -223,6 +231,7 @@ export default function AdminPanel({ user }) {
               <tr>
                 <th style={styles.th}>ID</th>
                 <th style={styles.th}>Title</th>
+                <th style={styles.th}>Category</th>
                 <th style={styles.th}>Priority</th>
                 <th style={styles.th}>Status</th>
                 <th style={styles.th}>Escalated</th>
@@ -234,6 +243,11 @@ export default function AdminPanel({ user }) {
                 <tr key={t.id}>
                   <td style={styles.td}>#{t.id}</td>
                   <td style={styles.td}>{t.title}</td>
+                  <td style={styles.td}>
+                    <span style={{ fontSize: 13, color: colors.gray700 }}>
+                      {CATEGORY_LABELS[t.category] || t.category || '—'}
+                    </span>
+                  </td>
                   <td style={styles.td}>
                     <span style={{
                       ...styles.badge,
