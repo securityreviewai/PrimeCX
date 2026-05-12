@@ -5,6 +5,7 @@ public record DashboardStats(
         long openTickets,
         long criticalOpenTickets,
         long openEscalatedTickets,
+        long openTicketsPastFollowUpDue,
         long activeSessions,
         long totalRecordings,
         long totalUsers

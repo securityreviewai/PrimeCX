@@ -59,6 +59,14 @@ public class Ticket {
     @Column(name = "support_reply", columnDefinition = "TEXT")
     private String supportReply;
 
+    private LocalDateTime followUpDueAt;
+
+    private Integer satisfactionRating;
+
+    @Lob
+    @Column(name = "satisfaction_comment", columnDefinition = "TEXT")
+    private String satisfactionComment;
+
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;

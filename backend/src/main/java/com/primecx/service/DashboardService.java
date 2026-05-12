@@ -1,5 +1,8 @@
 package com.primecx.service;
 
+import java.time.LocalDateTime;
+import java.util.List;
+
 import org.springframework.stereotype.Service;
 
 import com.primecx.dto.DashboardStats;
@@ -27,6 +30,8 @@ public class DashboardService {
         long openTickets = ticketRepository.countByStatus(TicketStatus.OPEN);
         long criticalOpenTickets = ticketRepository.countByStatusAndPriority(TicketStatus.OPEN, TicketPriority.CRITICAL);
         long openEscalatedTickets = ticketRepository.countByEscalatedTrueAndStatus(TicketStatus.OPEN);
+        long openTicketsPastFollowUpDue = ticketRepository.countByStatusInAndFollowUpDueAtBefore(
+                List.of(TicketStatus.OPEN, TicketStatus.IN_PROGRESS), LocalDateTime.now());
         long activeSessions = supportSessionRepository.countByStatus(SessionStatus.ACTIVE);
         long totalRecordings = recordingRepository.count();
         long totalUsers = userRepository.count();
@@ -36,6 +41,7 @@ public class DashboardService {
                 openTickets,
                 criticalOpenTickets,
                 openEscalatedTickets,
+                openTicketsPastFollowUpDue,
                 activeSessions,
                 totalRecordings,
                 totalUsers);

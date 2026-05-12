@@ -33,6 +33,22 @@ function sessionEndedAtMs(s) {
   return Number.isNaN(t) ? 0 : t;
 }
 
+function toDatetimeLocalValue(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function isFollowUpOverdue(ticket) {
+  if (!ticket?.followUpDueAt) return false;
+  const due = new Date(ticket.followUpDueAt).getTime();
+  if (Number.isNaN(due)) return false;
+  if (!['OPEN', 'IN_PROGRESS'].includes(ticket.status)) return false;
+  return Date.now() > due;
+}
+
 const styles = {
   backBtn: {
     background: 'none', border: 'none', color: colors.primary, fontSize: 14,
@@ -47,6 +63,7 @@ const styles = {
   },
   description: { fontSize: 15, color: colors.gray700, lineHeight: 1.6, marginBottom: 20 },
   sectionTitle: { fontSize: 16, fontWeight: 700, color: colors.gray900, marginBottom: 12 },
+  formLabel: { fontSize: 13, fontWeight: 600, color: colors.gray700, marginBottom: 6, display: 'block' },
   select: {
     padding: '8px 14px', borderRadius: 8, border: `1px solid ${colors.gray200}`,
     fontSize: 14, outline: 'none', background: '#fff', marginRight: 12,
@@ -90,6 +107,16 @@ const styles = {
   staffSplitRow: {
     display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end', marginTop: 12,
   },
+  datetimeInput: {
+    padding: '8px 12px', borderRadius: 8, border: `1px solid ${colors.gray200}`,
+    fontSize: 14, marginTop: 8, marginBottom: 8,
+  },
+  starRow: { display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 },
+  starBtn: {
+    width: 40, height: 40, borderRadius: 8, border: `1px solid ${colors.gray200}`,
+    background: '#fff', cursor: 'pointer', fontSize: 16, fontWeight: 700,
+  },
+  starBtnActive: { background: `${colors.warning}28`, borderColor: colors.warning, color: colors.warning },
 };
 
 export default function TicketDetail({ user }) {
@@ -110,6 +137,12 @@ export default function TicketDetail({ user }) {
   const [supportReplySaving, setSupportReplySaving] = useState(false);
   const [categoryEdit, setCategoryEdit] = useState('GENERAL');
   const [categorySaving, setCategorySaving] = useState(false);
+  const [followUpDueLocal, setFollowUpDueLocal] = useState('');
+  const [clearFollowUpCheck, setClearFollowUpCheck] = useState(false);
+  const [followUpSaving, setFollowUpSaving] = useState(false);
+  const [satisfactionPick, setSatisfactionPick] = useState(null);
+  const [satisfactionCommentText, setSatisfactionCommentText] = useState('');
+  const [satisfactionSaving, setSatisfactionSaving] = useState(false);
 
   const staffRoles = ['support_executive', 'support_admin', 'support_manager'];
   const canChangeStatus = staffRoles.includes(user?.role);
@@ -135,6 +168,10 @@ export default function TicketDetail({ user }) {
         setInternalNotes(found.internalNotes || '');
         setSupportReplyText(found.supportReply || '');
         setCategoryEdit(found.category || 'GENERAL');
+        setFollowUpDueLocal(toDatetimeLocalValue(found.followUpDueAt));
+        setClearFollowUpCheck(false);
+        setSatisfactionPick(null);
+        setSatisfactionCommentText('');
 
         const ticketSessions = sessionsRes.data.filter((s) => String(s.ticketId) === String(found.id));
         setSessions(ticketSessions);
@@ -230,6 +267,56 @@ export default function TicketDetail({ user }) {
     }
   };
 
+  const handleSaveFollowUp = async () => {
+    if (!canEditInternalNotes) return;
+    try {
+      setFollowUpSaving(true);
+      setError(null);
+      if (clearFollowUpCheck) {
+        await updateTicket(id, { clearFollowUpDueAt: true });
+        setTicket({ ...ticket, followUpDueAt: null });
+        setFollowUpDueLocal('');
+        setClearFollowUpCheck(false);
+      } else if (!followUpDueLocal?.trim()) {
+        setError('Pick a follow-up date and time, or check “Clear follow-up date”.');
+      } else {
+        const iso = new Date(followUpDueLocal).toISOString();
+        await updateTicket(id, { followUpDueAt: iso });
+        setTicket({ ...ticket, followUpDueAt: iso });
+      }
+    } catch {
+      setError('Failed to save follow-up date');
+    } finally {
+      setFollowUpSaving(false);
+    }
+  };
+
+  const handleSubmitSatisfaction = async () => {
+    if (!satisfactionPick) {
+      setError('Choose a rating from 1 to 5.');
+      return;
+    }
+    try {
+      setSatisfactionSaving(true);
+      setError(null);
+      await updateTicket(id, {
+        satisfactionRating: satisfactionPick,
+        satisfactionComment: satisfactionCommentText.trim() || undefined,
+      });
+      setTicket({
+        ...ticket,
+        satisfactionRating: satisfactionPick,
+        satisfactionComment: satisfactionCommentText.trim() || null,
+      });
+      setSatisfactionPick(null);
+      setSatisfactionCommentText('');
+    } catch {
+      setError('Could not submit feedback. It may already be submitted or the ticket may not be resolved yet.');
+    } finally {
+      setSatisfactionSaving(false);
+    }
+  };
+
   const handleCopyReference = async () => {
     if (!ticket) return;
     const line = `#${ticket.id} · ${ticket.title}`;
@@ -247,6 +334,11 @@ export default function TicketDetail({ user }) {
   if (loading) return <div style={styles.empty}>Loading ticket...</div>;
   if (!ticket && error) return <div style={{ ...styles.empty, color: colors.danger }}>{error}</div>;
   if (!ticket) return null;
+
+  const canRateTicket = (user?.role === 'user' || user?.role === 'ROLE_USER')
+    && Number(user?.id) === Number(ticket.userId)
+    && ['RESOLVED', 'CLOSED'].includes(ticket.status)
+    && !ticket.satisfactionRating;
 
   return (
     <div>
@@ -293,6 +385,17 @@ export default function TicketDetail({ user }) {
           <span style={{ fontSize: 13, color: colors.gray500, alignSelf: 'center' }}>
             Created {new Date(ticket.createdAt).toLocaleDateString()}
           </span>
+          {ticket.followUpDueAt && (
+            <span style={{
+              fontSize: 13,
+              alignSelf: 'center',
+              color: isFollowUpOverdue(ticket) ? colors.danger : colors.gray500,
+              fontWeight: isFollowUpOverdue(ticket) ? 600 : 400,
+            }}>
+              Follow-up: {new Date(ticket.followUpDueAt).toLocaleString()}
+              {isFollowUpOverdue(ticket) ? ' · Overdue' : ''}
+            </span>
+          )}
         </div>
 
         <button type="button" style={styles.copyBtn} onClick={handleCopyReference}>
@@ -355,6 +458,34 @@ export default function TicketDetail({ user }) {
                 {categorySaving ? 'Saving…' : 'Save category'}
               </button>
             </div>
+            <div style={{ marginTop: 20, paddingTop: 16, borderTop: `1px solid ${colors.gray100}` }}>
+              <h4 style={{ fontSize: 14, fontWeight: 700, color: colors.gray900, marginBottom: 4 }}>Follow-up due</h4>
+              <p style={styles.hint}>Customers see this target on the ticket. Used for overdue counts on dashboards.</p>
+              <input
+                type="datetime-local"
+                style={styles.datetimeInput}
+                value={followUpDueLocal}
+                onChange={(e) => {
+                  setFollowUpDueLocal(e.target.value);
+                  setClearFollowUpCheck(false);
+                }}
+                disabled={clearFollowUpCheck}
+              />
+              <label style={{ ...styles.escalationRow, marginTop: 4 }}>
+                <input
+                  type="checkbox"
+                  checked={clearFollowUpCheck}
+                  onChange={(e) => {
+                    setClearFollowUpCheck(e.target.checked);
+                    if (e.target.checked) setFollowUpDueLocal('');
+                  }}
+                />
+                <span>Clear follow-up date</span>
+              </label>
+              <button type="button" style={styles.btn} onClick={handleSaveFollowUp} disabled={followUpSaving}>
+                {followUpSaving ? 'Saving…' : 'Save follow-up'}
+              </button>
+            </div>
           </div>
         )}
 
@@ -377,6 +508,52 @@ export default function TicketDetail({ user }) {
           </div>
         )}
       </div>
+
+      {!!ticket.satisfactionRating && (
+        <div style={styles.card}>
+          <h3 style={styles.sectionTitle}>Satisfaction</h3>
+          <p style={{ fontSize: 15, color: colors.gray700 }}>
+            Rating: <strong>{ticket.satisfactionRating}</strong> / 5
+          </p>
+          {ticket.satisfactionComment && (
+            <div style={{ ...styles.wrapUpBody, background: '#fff', marginTop: 8 }}>
+              {ticket.satisfactionComment}
+            </div>
+          )}
+        </div>
+      )}
+
+      {canRateTicket && (
+        <div style={styles.card}>
+          <h3 style={styles.sectionTitle}>How did we do?</h3>
+          <p style={styles.hint}>This ticket is resolved. Please rate your experience (one time).</p>
+          <div style={styles.starRow}>
+            {[1, 2, 3, 4, 5].map((n) => (
+              <button
+                key={n}
+                type="button"
+                style={{
+                  ...styles.starBtn,
+                  ...(satisfactionPick === n ? styles.starBtnActive : {}),
+                }}
+                onClick={() => setSatisfactionPick(n)}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+          <label style={styles.formLabel}>Optional comment</label>
+          <textarea
+            style={styles.notesArea}
+            value={satisfactionCommentText}
+            onChange={(e) => setSatisfactionCommentText(e.target.value)}
+            placeholder="What went well or what could be better?"
+          />
+          <button type="button" style={styles.btn} onClick={handleSubmitSatisfaction} disabled={satisfactionSaving}>
+            {satisfactionSaving ? 'Submitting…' : 'Submit feedback'}
+          </button>
+        </div>
+      )}
 
       {canEditInternalNotes && (
         <div style={styles.card}>

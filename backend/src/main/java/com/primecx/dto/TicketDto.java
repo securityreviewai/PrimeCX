@@ -21,5 +21,8 @@ public record TicketDto(
         String supportReply,
         LocalDateTime createdAt,
         LocalDateTime updatedAt,
-        boolean escalated
+        boolean escalated,
+        LocalDateTime followUpDueAt,
+        Integer satisfactionRating,
+        String satisfactionComment
 ) {}
