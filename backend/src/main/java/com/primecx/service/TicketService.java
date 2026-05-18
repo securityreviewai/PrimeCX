@@ -1,20 +1,28 @@
 package com.primecx.service;
 
 import java.time.LocalDateTime;
+import java.util.EnumMap;
 import java.util.List;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.primecx.dto.CreateTicketRequest;
+import com.primecx.dto.PagedTicketsResponse;
 import com.primecx.dto.TicketDto;
+import com.primecx.dto.TicketStatsResponse;
 import com.primecx.dto.UpdateTicketRequest;
 import com.primecx.exception.ResourceNotFoundException;
 import com.primecx.model.Ticket;
+import com.primecx.model.TicketPriority;
 import com.primecx.model.TicketStatus;
 import com.primecx.model.User;
 import com.primecx.repository.TicketRepository;
 import com.primecx.repository.UserRepository;
+import com.primecx.specification.TicketSpecifications;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -90,6 +98,43 @@ public class TicketService {
 
     public List<Ticket> getAllTickets() {
         return ticketRepository.findAll();
+    }
+
+    @Transactional(readOnly = true)
+    public PagedTicketsResponse searchTickets(User viewer, TicketStatus status,
+            TicketPriority priority, String q, Pageable pageable) {
+        Specification<Ticket> spec = Specification.where(TicketSpecifications.visibleToUser(viewer));
+        if (status != null) {
+            spec = spec.and(TicketSpecifications.hasStatus(status));
+        }
+        if (priority != null) {
+            spec = spec.and(TicketSpecifications.hasPriority(priority));
+        }
+        spec = spec.and(TicketSpecifications.matchesSearch(q));
+
+        Page<Ticket> page = ticketRepository.findAll(spec, pageable);
+        List<TicketDto> content = page.getContent().stream().map(this::toDto).toList();
+        return new PagedTicketsResponse(
+                content,
+                page.getTotalElements(),
+                page.getTotalPages(),
+                page.getNumber(),
+                page.getSize());
+    }
+
+    @Transactional(readOnly = true)
+    public TicketStatsResponse getTicketStats(User viewer) {
+        Specification<Ticket> base = Specification.where(TicketSpecifications.visibleToUser(viewer));
+        long total = ticketRepository.count(base);
+        EnumMap<TicketStatus, Long> byStatus = new EnumMap<>(TicketStatus.class);
+        for (TicketStatus s : TicketStatus.values()) {
+            byStatus.put(s, ticketRepository.count(base.and(TicketSpecifications.hasStatus(s))));
+        }
+        long activeCount = byStatus.getOrDefault(TicketStatus.OPEN, 0L)
+                + byStatus.getOrDefault(TicketStatus.IN_PROGRESS, 0L);
+        long resolvedCount = byStatus.getOrDefault(TicketStatus.RESOLVED, 0L)
+                + byStatus.getOrDefault(TicketStatus.CLOSED, 0L);
+        return new TicketStatsResponse(byStatus, total, activeCount, resolvedCount);
     }
 
     public TicketDto toDto(Ticket ticket) {

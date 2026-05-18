@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getTickets, createTicket } from '../services/api';
 
@@ -49,6 +49,41 @@ const styles = {
   },
   label: { fontSize: 13, fontWeight: 600, color: colors.gray700, marginBottom: 6, display: 'block' },
   empty: { color: colors.gray500, fontSize: 14, textAlign: 'center', padding: 40 },
+  toolbar: {
+    display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 20, alignItems: 'center',
+  },
+  searchInput: {
+    flex: '1 1 200px', minWidth: 180, padding: '10px 14px', borderRadius: 8,
+    border: `1px solid ${colors.gray200}`, fontSize: 14, outline: 'none',
+  },
+  filterSelect: {
+    padding: '10px 14px', borderRadius: 8, border: `1px solid ${colors.gray200}`,
+    fontSize: 14, outline: 'none', background: '#fff', minWidth: 140,
+  },
+  statRow: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+    gap: 12,
+    marginBottom: 20,
+  },
+  statCard: {
+    background: colors.gray100,
+    borderRadius: 10,
+    padding: '14px 16px',
+    border: `1px solid ${colors.gray200}`,
+  },
+  statValue: { fontSize: 22, fontWeight: 700, color: colors.gray900, lineHeight: 1.2 },
+  statLabel: { fontSize: 12, fontWeight: 600, color: colors.gray500, marginTop: 4, textTransform: 'uppercase', letterSpacing: '0.4px' },
+  bannerSuccess: {
+    background: `${colors.success}18`,
+    color: '#047857',
+    padding: '12px 16px',
+    borderRadius: 8,
+    marginBottom: 16,
+    fontSize: 14,
+    fontWeight: 500,
+    border: `1px solid ${colors.success}40`,
+  },
 };
 
 export default function UserPortal({ user }) {
@@ -56,12 +91,19 @@ export default function UserPortal({ user }) {
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [createError, setCreateError] = useState(null);
   const [form, setForm] = useState({ title: '', description: '', priority: 'MEDIUM' });
   const [submitting, setSubmitting] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterPriority, setFilterPriority] = useState('all');
+  const [sortBy, setSortBy] = useState('newest');
+  const [createSuccess, setCreateSuccess] = useState(false);
 
   const fetchTickets = async () => {
     try {
       setLoading(true);
+      setError(null);
       const res = await getTickets();
       setTickets(res.data);
     } catch (err) {
@@ -73,16 +115,57 @@ export default function UserPortal({ user }) {
 
   useEffect(() => { fetchTickets(); }, []);
 
+  useEffect(() => {
+    if (!createSuccess) return undefined;
+    const t = setTimeout(() => setCreateSuccess(false), 4500);
+    return () => clearTimeout(t);
+  }, [createSuccess]);
+
+  const stats = useMemo(() => {
+    const list = tickets;
+    const active = list.filter((t) => t.status === 'OPEN' || t.status === 'IN_PROGRESS').length;
+    const resolved = list.filter((t) => t.status === 'RESOLVED').length;
+    const closed = list.filter((t) => t.status === 'CLOSED').length;
+    const criticalOpen = list.filter(
+      (t) => (t.status === 'OPEN' || t.status === 'IN_PROGRESS') && t.priority === 'CRITICAL'
+    ).length;
+    return { total: list.length, active, resolved, closed, criticalOpen };
+  }, [tickets]);
+
+  const filteredTickets = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    let list = tickets.filter((t) => {
+      const matchesText =
+        !q ||
+        t.title?.toLowerCase().includes(q) ||
+        String(t.id).includes(q) ||
+        (t.description && t.description.toLowerCase().includes(q));
+      const matchesStatus = filterStatus === 'all' || t.status === filterStatus;
+      const matchesPriority = filterPriority === 'all' || t.priority === filterPriority;
+      return matchesText && matchesStatus && matchesPriority;
+    });
+    list = [...list].sort((a, b) => {
+      const ta = new Date(a.createdAt).getTime();
+      const tb = new Date(b.createdAt).getTime();
+      return sortBy === 'newest' ? tb - ta : ta - tb;
+    });
+    return list;
+  }, [tickets, searchQuery, filterStatus, filterPriority, sortBy]);
+
+  const displayName = [user?.firstName, user?.lastName].filter(Boolean).join(' ') || user?.email || 'there';
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.title.trim()) return;
     try {
       setSubmitting(true);
+      setCreateError(null);
       await createTicket(form);
       setForm({ title: '', description: '', priority: 'MEDIUM' });
+      setCreateSuccess(true);
       fetchTickets();
     } catch {
-      setError('Failed to create ticket');
+      setCreateError('Failed to create ticket');
     } finally {
       setSubmitting(false);
     }
@@ -90,17 +173,129 @@ export default function UserPortal({ user }) {
 
   return (
     <div>
-      <h1 style={styles.heading}>My Tickets</h1>
+      <h1 style={styles.heading}>
+        My Tickets
+        <span style={{ display: 'block', fontSize: 15, fontWeight: 500, color: colors.gray500, marginTop: 8 }}>
+          Hi {displayName} — track requests and open new ones anytime.
+        </span>
+      </h1>
+      {createSuccess && (
+        <div style={styles.bannerSuccess} role="status">
+          Ticket created successfully. It appears in your list below.
+        </div>
+      )}
       <div style={styles.grid}>
         <div style={styles.card}>
+          {!loading && !error && tickets.length > 0 && (
+            <>
+              <div style={styles.statRow}>
+                <div style={styles.statCard}>
+                  <div style={styles.statValue}>{stats.total}</div>
+                  <div style={styles.statLabel}>Total</div>
+                </div>
+                <div style={styles.statCard}>
+                  <div style={{ ...styles.statValue, color: colors.primary }}>{stats.active}</div>
+                  <div style={styles.statLabel}>Active</div>
+                </div>
+                <div style={styles.statCard}>
+                  <div style={{ ...styles.statValue, color: colors.success }}>{stats.resolved}</div>
+                  <div style={styles.statLabel}>Resolved</div>
+                </div>
+                <div style={styles.statCard}>
+                  <div style={{ ...styles.statValue, color: colors.gray500 }}>{stats.closed}</div>
+                  <div style={styles.statLabel}>Closed</div>
+                </div>
+                {stats.criticalOpen > 0 && (
+                  <div style={{ ...styles.statCard, borderColor: `${colors.danger}55`, background: `${colors.danger}10` }}>
+                    <div style={{ ...styles.statValue, color: colors.danger }}>{stats.criticalOpen}</div>
+                    <div style={styles.statLabel}>Critical (open)</div>
+                  </div>
+                )}
+              </div>
+              <div style={styles.toolbar}>
+                <input
+                  type="search"
+                  aria-label="Search tickets"
+                  placeholder="Search by title, ID, or description..."
+                  style={styles.searchInput}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+                <select
+                  style={styles.filterSelect}
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  aria-label="Filter by status"
+                >
+                  <option value="all">All statuses</option>
+                  <option value="OPEN">Open</option>
+                  <option value="IN_PROGRESS">In progress</option>
+                  <option value="RESOLVED">Resolved</option>
+                  <option value="CLOSED">Closed</option>
+                </select>
+                <select
+                  style={styles.filterSelect}
+                  value={filterPriority}
+                  onChange={(e) => setFilterPriority(e.target.value)}
+                  aria-label="Filter by priority"
+                >
+                  <option value="all">All priorities</option>
+                  <option value="LOW">Low</option>
+                  <option value="MEDIUM">Medium</option>
+                  <option value="HIGH">High</option>
+                  <option value="CRITICAL">Critical</option>
+                </select>
+                <select
+                  style={styles.filterSelect}
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  aria-label="Sort tickets"
+                >
+                  <option value="newest">Newest first</option>
+                  <option value="oldest">Oldest first</option>
+                </select>
+              </div>
+            </>
+          )}
           {loading ? (
             <div style={styles.empty}>Loading tickets...</div>
           ) : error ? (
-            <div style={{ ...styles.empty, color: colors.danger }}>{error}</div>
+            <div style={{ ...styles.empty, color: colors.danger }}>
+              {error}
+              <button
+                type="button"
+                onClick={fetchTickets}
+                style={{
+                  display: 'block', margin: '16px auto 0', padding: '10px 20px',
+                  background: colors.primary, color: '#fff', border: 'none', borderRadius: 8,
+                  fontWeight: 600, cursor: 'pointer', fontSize: 14,
+                }}
+              >
+                Try again
+              </button>
+            </div>
           ) : tickets.length === 0 ? (
             <div style={styles.empty}>No tickets yet. Create your first ticket!</div>
+          ) : filteredTickets.length === 0 ? (
+            <div style={styles.empty}>
+              No tickets match your filters.
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setFilterStatus('all');
+                  setFilterPriority('all');
+                }}
+                style={{
+                  display: 'block', margin: '16px auto 0', background: 'none', border: 'none',
+                  color: colors.primary, fontWeight: 600, cursor: 'pointer', fontSize: 14,
+                }}
+              >
+                Clear filters
+              </button>
+            </div>
           ) : (
-            tickets.map((t) => (
+            filteredTickets.map((t) => (
               <div
                 key={t.id}
                 style={styles.ticketRow}
@@ -139,6 +334,22 @@ export default function UserPortal({ user }) {
           <h3 style={{ fontSize: 16, fontWeight: 700, color: colors.gray900, marginBottom: 20 }}>
             Create New Ticket
           </h3>
+          {createError && (
+            <div
+              role="alert"
+              style={{
+                background: `${colors.danger}12`,
+                color: '#B91C1C',
+                padding: '10px 14px',
+                borderRadius: 8,
+                marginBottom: 16,
+                fontSize: 14,
+                border: `1px solid ${colors.danger}35`,
+              }}
+            >
+              {createError}
+            </div>
+          )}
           <form onSubmit={handleSubmit}>
             <label style={styles.label}>Title</label>
             <input
