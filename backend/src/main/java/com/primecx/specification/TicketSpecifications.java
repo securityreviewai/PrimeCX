@@ -35,6 +35,15 @@ public final class TicketSpecifications {
         return (root, query, cb) -> cb.equal(root.get("category"), category);
     }
 
+    /** Exact match on normalized tag stored on the ticket (use same normalization as {@link com.primecx.service.TicketService}). */
+    public static Specification<Ticket> hasTag(String normalizedTag) {
+        if (normalizedTag == null || normalizedTag.isBlank()) {
+            return (root, query, cb) -> cb.conjunction();
+        }
+        String tag = normalizedTag.strip().toLowerCase();
+        return (root, query, cb) -> cb.isMember(tag, root.get("tags"));
+    }
+
     public static Specification<Ticket> unassignedClaimable() {
         return (root, query, cb) -> cb.and(
                 cb.isNull(root.get("assignedTo")),

@@ -5,6 +5,7 @@ import com.primecx.model.TicketPriority;
 import com.primecx.model.TicketStatus;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record TicketDto(
         Long id,
@@ -13,6 +14,7 @@ public record TicketDto(
         TicketStatus status,
         TicketPriority priority,
         TicketCategory category,
+        List<String> tags,
         Long userId,
         String userName,
         Long assignedToId,

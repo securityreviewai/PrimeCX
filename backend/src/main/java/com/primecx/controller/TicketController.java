@@ -87,10 +87,11 @@ public class TicketController {
             @RequestParam(required = false) TicketStatus status,
             @RequestParam(required = false) TicketPriority priority,
             @RequestParam(required = false) TicketCategory category,
+            @RequestParam(required = false, name = "tag") String tag,
             @RequestParam(required = false, name = "q") String q,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         User currentUser = userService.getUserByOktaId(oidcUser.getSubject());
-        return ResponseEntity.ok(ticketService.searchTickets(currentUser, status, priority, category, q, pageable));
+        return ResponseEntity.ok(ticketService.searchTickets(currentUser, status, priority, category, tag, q, pageable));
     }
 
     @GetMapping("/stats")

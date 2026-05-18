@@ -1,5 +1,7 @@
 package com.primecx.dto;
 
+import java.util.List;
+
 import com.primecx.model.TicketCategory;
 import com.primecx.model.TicketPriority;
 import com.primecx.model.TicketStatus;
@@ -10,5 +12,6 @@ public record UpdateTicketRequest(
         TicketStatus status,
         TicketPriority priority,
         TicketCategory category,
+        List<String> tags,
         Long assignedToId
 ) {}

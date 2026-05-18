@@ -100,6 +100,15 @@ export const updateTicket = (id, data) => api.put(`/tickets/${id}`, data);
 export const applyTicketAiClassification = (ticketId) =>
   api.post(`/tickets/${ticketId}/classification/apply-ai`);
 
+/** Saved replies / macros — support roles read; managers & admins mutate. */
+export const getSavedReplies = () => api.get('/saved-replies');
+
+export const createSavedReply = (payload) => api.post('/saved-replies', payload);
+
+export const updateSavedReply = (id, payload) => api.put(`/saved-replies/${id}`, payload);
+
+export const deleteSavedReply = (id) => api.delete(`/saved-replies/${id}`);
+
 export const getSessions = () => api.get('/sessions');
 export const startSession = (data) => api.post('/sessions', data);
 export const endSession = (id, notes) => api.post(`/sessions/${id}/end`, { notes });

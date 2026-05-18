@@ -201,6 +201,7 @@ export default function SupportConsole({ user }) {
                       <div style={{ fontSize: 12, color: colors.gray500, marginTop: 2 }}>
                         #{t.id} &middot; {t.userName || 'Customer'}
                         {t.category ? ` · ${formatCategorySnippet(t.category)}` : ''}
+                        {Array.isArray(t.tags) && t.tags.length > 0 ? ` · ${t.tags.slice(0, 3).join(', ')}${t.tags.length > 3 ? '…' : ''}` : ''}
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -244,6 +245,7 @@ export default function SupportConsole({ user }) {
                     <div style={{ fontSize: 12, color: colors.gray500, marginTop: 2 }}>
                       #{t.id}
                       {t.category ? ` · ${formatCategorySnippet(t.category)}` : ''}
+                      {Array.isArray(t.tags) && t.tags.length > 0 ? ` · ${t.tags.slice(0, 4).join(', ')}${t.tags.length > 4 ? '…' : ''}` : ''}
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>

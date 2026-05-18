@@ -6,9 +6,12 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
+import java.util.TreeSet;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -48,6 +51,7 @@ public class TicketService {
 
     private static final int EXPORT_ROW_CAP = 5_000;
     private static final DateTimeFormatter CSV_INSTANT = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
+    private static final int MAX_TAGS_PER_TICKET = 20;
 
     private final TicketRepository ticketRepository;
     private final UserRepository userRepository;
@@ -87,7 +91,7 @@ public class TicketService {
         Page<Ticket> page = ticketRepository.findAll(spec, pageable);
 
         writer.write('\ufeff');
-        writer.write("id,title,description,status,priority,category,user_id,user_name,assignee_id,assignee_name,created_at,updated_at,customer_rating,customer_feedback,satisfaction_submitted_at,sla_respond_by,sla_breached\n");
+        writer.write("id,title,description,status,priority,category,tags,user_id,user_name,assignee_id,assignee_name,created_at,updated_at,customer_rating,customer_feedback,satisfaction_submitted_at,sla_respond_by,sla_breached\n");
         for (Ticket ticket : page.getContent()) {
             TicketDto row = toDto(ticket);
             writer.write(Long.toString(row.id()));
@@ -101,6 +105,8 @@ public class TicketService {
             writer.write(row.priority() != null ? row.priority().name() : "");
             writer.write(',');
             writer.write(row.category() != null ? row.category().name() : "");
+            writer.write(',');
+            writer.write(csvField(row.tags().isEmpty() ? "" : String.join("|", row.tags())));
             writer.write(',');
             writer.write(Long.toString(row.userId()));
             writer.write(',');
@@ -230,6 +236,15 @@ public class TicketService {
                     notes.add("Assignee → user #" + aid);
                 }
             }
+            if (request.tags() != null) {
+                LinkedHashSet<String> nextTags = normalizeTags(request.tags());
+                Set<String> prevTags = new TreeSet<>(ticket.getTags());
+                if (!prevTags.equals(nextTags)) {
+                    ticket.getTags().clear();
+                    ticket.getTags().addAll(nextTags);
+                    notes.add("Tags updated");
+                }
+            }
         } else {
             if (request.title() != null && !Objects.equals(request.title(), prevTitle)) {
                 ticket.setTitle(request.title());
@@ -317,7 +332,7 @@ public class TicketService {
 
     @Transactional(readOnly = true)
     public PagedTicketsResponse searchTickets(User viewer, TicketStatus status,
-            TicketPriority priority, TicketCategory category, String q, Pageable pageable) {
+            TicketPriority priority, TicketCategory category, String tag, String q, Pageable pageable) {
         Specification<Ticket> spec = Specification.where(TicketSpecifications.visibleToUser(viewer));
         if (status != null) {
             spec = spec.and(TicketSpecifications.hasStatus(status));
@@ -327,6 +342,10 @@ public class TicketService {
         }
         if (category != null) {
             spec = spec.and(TicketSpecifications.hasCategory(category));
+        }
+        String normalizedTag = normalizeTag(tag);
+        if (!normalizedTag.isEmpty()) {
+            spec = spec.and(TicketSpecifications.hasTag(normalizedTag));
         }
         spec = spec.and(TicketSpecifications.matchesSearch(q));
 
@@ -400,6 +419,7 @@ public class TicketService {
                 ticket.getStatus(),
                 ticket.getPriority(),
                 ticket.getCategory() != null ? ticket.getCategory() : TicketCategory.GENERAL_INQUIRY,
+                sortedTags(ticket),
                 ticket.getUser().getId(),
                 userName,
                 assignedToId,
@@ -481,5 +501,42 @@ public class TicketService {
         } catch (IllegalArgumentException e) {
             return TicketPriority.MEDIUM;
         }
+    }
+
+    private List<String> sortedTags(Ticket ticket) {
+        if (ticket.getTags() == null || ticket.getTags().isEmpty()) {
+            return List.of();
+        }
+        return ticket.getTags().stream().sorted().toList();
+    }
+
+    /** Normalize tag input to lowercase [a-z0-9-]{1,48}; empty string when invalid after strip. */
+    public static String normalizeTag(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "";
+        }
+        String t = raw.strip().toLowerCase(Locale.ROOT).replaceAll("\\s+", "-");
+        t = t.replaceAll("[^a-z0-9\\-]", "");
+        if (t.length() > 48) {
+            t = t.substring(0, 48);
+        }
+        return t;
+    }
+
+    private static LinkedHashSet<String> normalizeTags(List<String> raw) {
+        LinkedHashSet<String> out = new LinkedHashSet<>();
+        if (raw == null) {
+            return out;
+        }
+        for (String s : raw) {
+            String n = normalizeTag(s);
+            if (!n.isEmpty()) {
+                out.add(n);
+            }
+            if (out.size() >= MAX_TAGS_PER_TICKET) {
+                break;
+            }
+        }
+        return out;
     }
 }

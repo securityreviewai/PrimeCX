@@ -14,6 +14,8 @@ import {
   submitTicketSatisfaction,
   getTicketActivity,
   applyTicketAiClassification,
+  getSavedReplies,
+  createSavedReply,
 } from '../services/api';
 
 const colors = {
@@ -176,6 +178,13 @@ export default function TicketDetail({ user }) {
   const [catUpdating, setCatUpdating] = useState(false);
   const [aiApplying, setAiApplying] = useState(false);
   const [internalReply, setInternalReply] = useState(false);
+  const [savedReplies, setSavedReplies] = useState([]);
+  const [snippetChoice, setSnippetChoice] = useState('');
+  const [macroTitle, setMacroTitle] = useState('');
+  const [macroBody, setMacroBody] = useState('');
+  const [macroSaving, setMacroSaving] = useState(false);
+  const [tagsDraft, setTagsDraft] = useState('');
+  const [tagsUpdating, setTagsUpdating] = useState(false);
 
   const rk = roleKey(user?.role);
 
@@ -186,6 +195,7 @@ export default function TicketDetail({ user }) {
 
   const isCustomer = rk === 'user';
   const isAdmin = rk === 'support_admin';
+  const canManageMacros = rk === 'support_admin' || rk === 'support_manager';
 
   const loadDetail = async () => {
     try {
@@ -202,6 +212,7 @@ export default function TicketDetail({ user }) {
       setTicket(t);
       setStatusUpdate(t.status);
       setCategoryDraft(t.category || 'GENERAL_INQUIRY');
+      setTagsDraft(Array.isArray(t.tags) ? t.tags.join(', ') : '');
       setMessages(Array.isArray(msgRes.data) ? msgRes.data : []);
       setAttachments(Array.isArray(attRes.data) ? attRes.data : []);
       setActivity(actRes.data && typeof actRes.data === 'object' ? actRes.data : { content: [], totalElements: 0 });
@@ -219,6 +230,17 @@ export default function TicketDetail({ user }) {
         }
       }
       setRecordings(recs);
+
+      if (canChangeStatus) {
+        try {
+          const sr = await getSavedReplies();
+          setSavedReplies(Array.isArray(sr.data) ? sr.data : []);
+        } catch {
+          setSavedReplies([]);
+        }
+      } else {
+        setSavedReplies([]);
+      }
     } catch (e) {
       const msg =
         e.response?.data?.message ||
@@ -267,6 +289,7 @@ export default function TicketDetail({ user }) {
       setTicket(res.data);
       setStatusUpdate(res.data.status);
       setCategoryDraft(res.data.category || 'GENERAL_INQUIRY');
+      setTagsDraft(Array.isArray(res.data.tags) ? res.data.tags.join(', ') : '');
     } catch {
       /* silent */
     }
@@ -334,6 +357,47 @@ export default function TicketDetail({ user }) {
       setError(msg);
     } finally {
       setAiApplying(false);
+    }
+  };
+
+  const handleSaveTags = async () => {
+    if (!ticket) return;
+    const tags = tagsDraft.split(',').map((s) => s.trim()).filter(Boolean);
+    try {
+      setTagsUpdating(true);
+      setError(null);
+      await updateTicket(id, { tags });
+      await refreshTicketOnly();
+      await reloadActivity();
+    } catch {
+      setError('Failed to update tags');
+    } finally {
+      setTagsUpdating(false);
+    }
+  };
+
+  const handleInsertSnippet = () => {
+    const rid = Number(snippetChoice);
+    if (!rid) return;
+    const row = savedReplies.find((r) => r.id === rid);
+    if (!row) return;
+    setMsgBody((prev) => (prev?.trim() ? `${prev.trimEnd()}\n\n${row.body}` : row.body));
+  };
+
+  const handleCreateMacro = async () => {
+    if (!macroTitle.trim() || !macroBody.trim()) return;
+    try {
+      setMacroSaving(true);
+      setError(null);
+      await createSavedReply({ title: macroTitle.trim(), body: macroBody.trim() });
+      const sr = await getSavedReplies();
+      setSavedReplies(Array.isArray(sr.data) ? sr.data : []);
+      setMacroTitle('');
+      setMacroBody('');
+    } catch {
+      setError('Could not save reply to library');
+    } finally {
+      setMacroSaving(false);
     }
   };
 
@@ -493,6 +557,28 @@ export default function TicketDetail({ user }) {
           )}
         </div>
 
+        {Array.isArray(ticket.tags) && ticket.tags.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+            {ticket.tags.map((tag) => (
+              <span
+                key={tag}
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: colors.gray700,
+                  background: colors.gray100,
+                  padding: '4px 10px',
+                  borderRadius: 6,
+                  border: `1px solid ${colors.gray200}`,
+                  fontFamily: 'ui-monospace, monospace',
+                }}
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
+
         <p style={styles.description}>{ticket.description || 'No description provided.'}</p>
 
         {ticket.customerRating != null && (
@@ -603,6 +689,32 @@ export default function TicketDetail({ user }) {
                 </button>
               </div>
             </div>
+            <div style={{ paddingTop: 14, marginTop: 12, borderTop: `1px solid ${colors.gray100}` }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: colors.gray700, marginBottom: 10 }}>Tags</div>
+              <p style={{ fontSize: 13, color: colors.gray500, marginTop: 0, marginBottom: 12, maxWidth: 560, lineHeight: 1.5 }}>
+                Comma-separated labels (letters, numbers, hyphens — normalized server-side). Used for filtering and exports. Up to 20 tags.
+              </p>
+              <input
+                type="text"
+                aria-label="Ticket tags"
+                value={tagsDraft}
+                onChange={(e) => setTagsDraft(e.target.value)}
+                placeholder="vip, billing-follow-up, enterprise"
+                style={{
+                  width: '100%', maxWidth: 560, padding: '10px 14px', borderRadius: 8,
+                  border: `1px solid ${colors.gray200}`, fontSize: 14, outline: 'none', marginBottom: 12,
+                  boxSizing: 'border-box',
+                }}
+              />
+              <button
+                style={styles.btn}
+                type="button"
+                onClick={handleSaveTags}
+                disabled={tagsUpdating}
+              >
+                {tagsUpdating ? 'Saving…' : 'Save tags'}
+              </button>
+            </div>
           </>
         )}
       </div>
@@ -705,6 +817,49 @@ export default function TicketDetail({ user }) {
           ))
         )}
         <form onSubmit={handlePostMessage} style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${colors.gray100}` }}>
+          {canManageMacros && (
+            <div style={{ marginBottom: 14, padding: 14, borderRadius: 10, border: `1px solid ${colors.gray200}`, background: colors.gray100 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: colors.gray900, marginBottom: 10 }}>New saved reply</div>
+              <input
+                type="text"
+                placeholder="Short title"
+                value={macroTitle}
+                onChange={(e) => setMacroTitle(e.target.value)}
+                style={{
+                  width: '100%', padding: '8px 12px', borderRadius: 8, border: `1px solid ${colors.gray200}`,
+                  fontSize: 14, marginBottom: 8, boxSizing: 'border-box',
+                }}
+              />
+              <textarea
+                placeholder="Snippet body — executives can insert this into replies below."
+                value={macroBody}
+                onChange={(e) => setMacroBody(e.target.value)}
+                style={{ ...styles.textarea, minHeight: 72, marginBottom: 8 }}
+                maxLength={4096}
+              />
+              <button style={{ ...styles.btn, opacity: macroSaving ? 0.7 : 1 }} type="button" disabled={macroSaving || !macroTitle.trim() || !macroBody.trim()} onClick={handleCreateMacro}>
+                {macroSaving ? 'Saving…' : 'Add to library'}
+              </button>
+            </div>
+          )}
+          {canChangeStatus && savedReplies.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', marginBottom: 12 }}>
+              <select
+                aria-label="Saved reply"
+                style={{ ...styles.select, flex: '1 1 220px', marginRight: 0 }}
+                value={snippetChoice}
+                onChange={(e) => setSnippetChoice(e.target.value)}
+              >
+                <option value="">Insert saved reply…</option>
+                {savedReplies.map((r) => (
+                  <option key={r.id} value={String(r.id)}>{r.title}</option>
+                ))}
+              </select>
+              <button type="button" style={styles.btnGhost} disabled={!snippetChoice} onClick={handleInsertSnippet}>
+                Insert into reply
+              </button>
+            </div>
+          )}
           {canChangeStatus && (
             <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: colors.gray700, marginBottom: 12, cursor: 'pointer' }}>
               <input

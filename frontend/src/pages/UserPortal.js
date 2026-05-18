@@ -117,6 +117,7 @@ export default function UserPortal({ user }) {
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterPriority, setFilterPriority] = useState('all');
   const [filterCategory, setFilterCategory] = useState('all');
+  const [filterTag, setFilterTag] = useState('');
   const [sortBy, setSortBy] = useState('newest');
   const [createSuccess, setCreateSuccess] = useState(false);
   const [serverStats, setServerStats] = useState(null);
@@ -192,7 +193,11 @@ export default function UserPortal({ user }) {
       const matchesStatus = filterStatus === 'all' || t.status === filterStatus;
       const matchesPriority = filterPriority === 'all' || t.priority === filterPriority;
       const matchesCategory = filterCategory === 'all' || t.category === filterCategory;
-      return matchesText && matchesStatus && matchesPriority && matchesCategory;
+      const tagNeedle = filterTag.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
+      const matchesTag =
+        !tagNeedle
+        || (Array.isArray(t.tags) && t.tags.some((tg) => String(tg).toLowerCase().includes(tagNeedle)));
+      return matchesText && matchesStatus && matchesPriority && matchesCategory && matchesTag;
     });
     list = [...list].sort((a, b) => {
       const ta = new Date(a.createdAt).getTime();
@@ -200,7 +205,7 @@ export default function UserPortal({ user }) {
       return sortBy === 'newest' ? tb - ta : ta - tb;
     });
     return list;
-  }, [tickets, searchQuery, filterStatus, filterPriority, filterCategory, sortBy]);
+  }, [tickets, searchQuery, filterStatus, filterPriority, filterCategory, filterTag, sortBy]);
 
   const displayName = [user?.firstName, user?.lastName].filter(Boolean).join(' ') || user?.email || 'there';
 
@@ -356,6 +361,14 @@ export default function UserPortal({ user }) {
                     <option key={o.value} value={o.value}>{o.label}</option>
                   ))}
                 </select>
+                <input
+                  type="search"
+                  aria-label="Filter by tag"
+                  placeholder="Tag contains…"
+                  style={{ ...styles.searchInput, flex: '0 1 160px', minWidth: 140 }}
+                  value={filterTag}
+                  onChange={(e) => setFilterTag(e.target.value)}
+                />
                 <select
                   style={styles.filterSelect}
                   value={sortBy}
@@ -415,6 +428,7 @@ export default function UserPortal({ user }) {
                   setFilterStatus('all');
                   setFilterPriority('all');
                   setFilterCategory('all');
+                  setFilterTag('');
                 }}
                 style={{
                   display: 'block', margin: '16px auto 0', background: 'none', border: 'none',
@@ -438,6 +452,30 @@ export default function UserPortal({ user }) {
                   <div style={{ fontSize: 13, color: colors.gray500, marginTop: 4 }}>
                     #{t.id} &middot; {new Date(t.createdAt).toLocaleDateString()}
                   </div>
+                  {Array.isArray(t.tags) && t.tags.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                      {t.tags.slice(0, 6).map((tg) => (
+                        <span
+                          key={tg}
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 600,
+                            color: colors.gray700,
+                            background: colors.gray100,
+                            padding: '2px 8px',
+                            borderRadius: 6,
+                            border: `1px solid ${colors.gray200}`,
+                            fontFamily: 'ui-monospace, monospace',
+                          }}
+                        >
+                          {tg}
+                        </span>
+                      ))}
+                      {t.tags.length > 6 && (
+                        <span style={{ fontSize: 11, color: colors.gray500 }}>+{t.tags.length - 6}</span>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <span style={{

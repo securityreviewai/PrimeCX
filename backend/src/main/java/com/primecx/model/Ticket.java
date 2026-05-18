@@ -7,6 +7,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 
 @Data
 @Builder
@@ -61,6 +63,12 @@ public class Ticket {
 
     /** Target first-response time derived from priority when the ticket was opened or reprioritized. */
     private LocalDateTime slaRespondBy;
+
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(name = "ticket_tags", joinColumns = @JoinColumn(name = "ticket_id"))
+    @Column(name = "tag", nullable = false, length = 48)
+    @Builder.Default
+    private Set<String> tags = new HashSet<>();
 
     @PrePersist
     protected void onCreate() {
