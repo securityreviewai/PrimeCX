@@ -1,11 +1,16 @@
 package com.primecx.service;
 
+import java.io.IOException;
+import java.io.Writer;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.EnumMap;
 import java.util.List;
 
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,8 +39,80 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class TicketService {
 
+    private static final int EXPORT_ROW_CAP = 5_000;
+    private static final DateTimeFormatter CSV_INSTANT = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
+
     private final TicketRepository ticketRepository;
     private final UserRepository userRepository;
+
+    @Transactional
+    public Ticket claimTicket(Long ticketId, User executive) {
+        if (executive.getRole() != Role.ROLE_SUPPORT_EXECUTIVE) {
+            throw new ForbiddenException("Only support executives can claim tickets.");
+        }
+        Ticket ticket = getTicketById(ticketId);
+        if (ticket.getAssignedTo() != null) {
+            throw new IllegalArgumentException("This ticket already has an assignee.");
+        }
+        if (ticket.getStatus() != TicketStatus.OPEN && ticket.getStatus() != TicketStatus.IN_PROGRESS) {
+            throw new IllegalArgumentException("Only open or in-progress tickets can be claimed.");
+        }
+
+        User assigneeEntity = userRepository.findById(executive.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("User", executive.getId()));
+        ticket.setAssignedTo(assigneeEntity);
+        if (ticket.getStatus() == TicketStatus.OPEN) {
+            ticket.setStatus(TicketStatus.IN_PROGRESS);
+        }
+        ticket.setUpdatedAt(LocalDateTime.now());
+        Ticket saved = ticketRepository.save(ticket);
+        log.info("Ticket {} claimed by executive {}", ticketId, executive.getId());
+        return saved;
+    }
+
+    @Transactional(readOnly = true)
+    public boolean writeVisibleTicketsCsv(User viewer, Writer writer) throws IOException {
+        Specification<Ticket> spec = Specification.where(TicketSpecifications.visibleToUser(viewer));
+        Pageable pageable = PageRequest.of(0, EXPORT_ROW_CAP, Sort.by("createdAt").descending());
+        Page<Ticket> page = ticketRepository.findAll(spec, pageable);
+
+        writer.write('\ufeff');
+        writer.write("id,title,description,status,priority,user_id,user_name,assignee_id,assignee_name,created_at,updated_at\n");
+        for (Ticket ticket : page.getContent()) {
+            TicketDto row = toDto(ticket);
+            writer.write(Long.toString(row.id()));
+            writer.write(',');
+            writer.write(csvField(row.title()));
+            writer.write(',');
+            writer.write(csvField(row.description()));
+            writer.write(',');
+            writer.write(row.status() != null ? row.status().name() : "");
+            writer.write(',');
+            writer.write(row.priority() != null ? row.priority().name() : "");
+            writer.write(',');
+            writer.write(Long.toString(row.userId()));
+            writer.write(',');
+            writer.write(csvField(row.userName()));
+            writer.write(',');
+            writer.write(row.assignedToId() != null ? Long.toString(row.assignedToId()) : "");
+            writer.write(',');
+            writer.write(row.assignedToName() != null ? csvField(row.assignedToName()) : "");
+            writer.write(',');
+            writer.write(row.createdAt() != null ? CSV_INSTANT.format(row.createdAt()) : "");
+            writer.write(',');
+            writer.write(row.updatedAt() != null ? CSV_INSTANT.format(row.updatedAt()) : "");
+            writer.write('\n');
+        }
+        return page.getTotalElements() > EXPORT_ROW_CAP;
+    }
+
+    private static String csvField(String value) {
+        if (value == null) {
+            return "\"\"";
+        }
+        String normalized = value.replace("\r\n", "\n").replace('\r', '\n');
+        return "\"" + normalized.replace("\"", "\"\"") + "\"";
+    }
 
     @Transactional
     public Ticket createTicket(CreateTicketRequest request, Long userId) {

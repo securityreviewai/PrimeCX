@@ -1,7 +1,10 @@
 package com.primecx.controller;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -35,6 +38,7 @@ import com.primecx.service.TicketMessageService;
 import com.primecx.service.TicketService;
 import com.primecx.service.UserService;
 
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -90,6 +94,31 @@ public class TicketController {
     public ResponseEntity<TicketStatsResponse> ticketStats(@AuthenticationPrincipal OidcUser oidcUser) {
         User currentUser = userService.getUserByOktaId(oidcUser.getSubject());
         return ResponseEntity.ok(ticketService.getTicketStats(currentUser));
+    }
+
+    @GetMapping(value = "/export", produces = "text/csv")
+    public void exportTicketsCsv(
+            @AuthenticationPrincipal OidcUser oidcUser,
+            HttpServletResponse response) throws IOException {
+        User currentUser = userService.getUserByOktaId(oidcUser.getSubject());
+        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+        response.setContentType("text/csv; charset=UTF-8");
+        response.setHeader(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"primecx-tickets.csv\"");
+        boolean truncated = ticketService.writeVisibleTicketsCsv(currentUser, response.getWriter());
+        if (truncated) {
+            response.setHeader("X-Export-Truncated", "true");
+        }
+        response.getWriter().flush();
+    }
+
+    @PostMapping("/{id:\\d+}/claim")
+    @PreAuthorize("hasRole('SUPPORT_EXECUTIVE')")
+    public ResponseEntity<TicketDto> claimTicket(
+            @PathVariable Long id,
+            @AuthenticationPrincipal OidcUser oidcUser) {
+        User currentUser = userService.getUserByOktaId(oidcUser.getSubject());
+        Ticket ticket = ticketService.claimTicket(id, currentUser);
+        return ResponseEntity.ok(ticketService.toDto(ticket));
     }
 
     @GetMapping("/{id:\\d+}/messages")
