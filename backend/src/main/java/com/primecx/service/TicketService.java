@@ -15,7 +15,9 @@ import com.primecx.dto.PagedTicketsResponse;
 import com.primecx.dto.TicketDto;
 import com.primecx.dto.TicketStatsResponse;
 import com.primecx.dto.UpdateTicketRequest;
+import com.primecx.exception.ForbiddenException;
 import com.primecx.exception.ResourceNotFoundException;
+import com.primecx.model.Role;
 import com.primecx.model.Ticket;
 import com.primecx.model.TicketPriority;
 import com.primecx.model.TicketStatus;
@@ -54,29 +56,85 @@ public class TicketService {
     }
 
     @Transactional
-    public Ticket updateTicket(Long ticketId, UpdateTicketRequest request) {
+    public Ticket updateTicket(Long ticketId, UpdateTicketRequest request, User updater) {
         Ticket ticket = getTicketById(ticketId);
+        assertCanUpdateTicket(updater, ticket);
 
-        if (request.title() != null) {
-            ticket.setTitle(request.title());
-        }
-        if (request.description() != null) {
-            ticket.setDescription(request.description());
-        }
-        if (request.status() != null) {
-            ticket.setStatus(request.status());
-        }
-        if (request.priority() != null) {
-            ticket.setPriority(request.priority());
-        }
-        if (request.assignedToId() != null) {
-            User assignee = userRepository.findById(request.assignedToId())
-                    .orElseThrow(() -> new ResourceNotFoundException("User", request.assignedToId()));
-            ticket.setAssignedTo(assignee);
+        boolean fullAccess = updater.getRole() == Role.ROLE_SUPPORT_ADMIN
+                || updater.getRole() == Role.ROLE_SUPPORT_MANAGER
+                || updater.getRole() == Role.ROLE_SUPPORT_EXECUTIVE;
+
+        if (fullAccess) {
+            if (request.title() != null) {
+                ticket.setTitle(request.title());
+            }
+            if (request.description() != null) {
+                ticket.setDescription(request.description());
+            }
+            if (request.status() != null) {
+                ticket.setStatus(request.status());
+            }
+            if (request.priority() != null) {
+                ticket.setPriority(request.priority());
+            }
+            if (request.assignedToId() != null) {
+                User assignee = userRepository.findById(request.assignedToId())
+                        .orElseThrow(() -> new ResourceNotFoundException("User", request.assignedToId()));
+                ticket.setAssignedTo(assignee);
+            }
+        } else {
+            if (request.title() != null) {
+                ticket.setTitle(request.title());
+            }
+            if (request.description() != null) {
+                ticket.setDescription(request.description());
+            }
+            if (request.priority() != null) {
+                ticket.setPriority(request.priority());
+            }
         }
 
         ticket.setUpdatedAt(LocalDateTime.now());
         return ticketRepository.save(ticket);
+    }
+
+    /**
+     * Returns the ticket if it exists and the viewer is permitted to access it under the same rules as listing tickets.
+     */
+    @Transactional(readOnly = true)
+    public Ticket getTicketVisibleTo(Long ticketId, User viewer) {
+        Ticket ticket = ticketRepository.findById(ticketId)
+                .orElseThrow(() -> new ResourceNotFoundException("Ticket", ticketId));
+        if (!canUserViewTicket(viewer, ticket)) {
+            throw new ForbiddenException("You do not have access to this ticket.");
+        }
+        return ticket;
+    }
+
+    public boolean canUserViewTicket(User viewer, Ticket ticket) {
+        return switch (viewer.getRole()) {
+            case ROLE_SUPPORT_ADMIN, ROLE_SUPPORT_MANAGER -> true;
+            case ROLE_SUPPORT_EXECUTIVE -> ticket.getAssignedTo() != null
+                    && viewer.getId().equals(ticket.getAssignedTo().getId());
+            case ROLE_USER -> viewer.getId().equals(ticket.getUser().getId());
+        };
+    }
+
+    private void assertCanUpdateTicket(User updater, Ticket ticket) {
+        switch (updater.getRole()) {
+            case ROLE_SUPPORT_ADMIN, ROLE_SUPPORT_MANAGER -> {}
+            case ROLE_SUPPORT_EXECUTIVE -> {
+                if (ticket.getAssignedTo() == null
+                        || !updater.getId().equals(ticket.getAssignedTo().getId())) {
+                    throw new ForbiddenException("Only the assigned support executive can update this ticket.");
+                }
+            }
+            case ROLE_USER -> {
+                if (!updater.getId().equals(ticket.getUser().getId())) {
+                    throw new ForbiddenException("You can only edit your own tickets.");
+                }
+            }
+        }
     }
 
     public Ticket getTicketById(Long id) {
