@@ -38,6 +38,10 @@ public class TicketMessage {
     @Column(nullable = false, length = 4096)
     private String body;
 
+    /** Visible only to support roles — hidden from the ticket owner on read APIs. */
+    @Column(nullable = false)
+    private boolean internalNote = false;
+
     private LocalDateTime createdAt;
 
     @PrePersist

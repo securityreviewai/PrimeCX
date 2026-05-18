@@ -17,6 +17,25 @@ const colors = {
 const priorityColors = { LOW: colors.success, MEDIUM: colors.warning, HIGH: '#F97316', CRITICAL: colors.danger };
 const statusColors = { OPEN: colors.primary, IN_PROGRESS: colors.warning, RESOLVED: colors.success, CLOSED: colors.gray500 };
 
+const TICKET_CATEGORY_OPTIONS = [
+  { value: 'GENERAL_INQUIRY', label: 'General inquiry' },
+  { value: 'BILLING', label: 'Billing' },
+  { value: 'TECHNICAL', label: 'Technical' },
+  { value: 'ACCOUNT', label: 'Account' },
+  { value: 'PRODUCT_FEEDBACK', label: 'Product feedback' },
+  { value: 'SERVICE_OUTAGE', label: 'Service outage' },
+  { value: 'COMPLAINT', label: 'Complaint' },
+  { value: 'FEATURE_REQUEST', label: 'Feature request' },
+];
+
+function formatCategoryLabel(cat) {
+  if (!cat) return '';
+  return String(cat)
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, (ch) => ch.toUpperCase());
+}
+
 const styles = {
   heading: { fontSize: 24, fontWeight: 700, color: colors.gray900, marginBottom: 24 },
   grid: { display: 'grid', gridTemplateColumns: '1fr 380px', gap: 24, alignItems: 'start' },
@@ -92,11 +111,12 @@ export default function UserPortal({ user }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [createError, setCreateError] = useState(null);
-  const [form, setForm] = useState({ title: '', description: '', priority: 'MEDIUM' });
+  const [form, setForm] = useState({ title: '', description: '', priority: 'MEDIUM', category: 'GENERAL_INQUIRY' });
   const [submitting, setSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterPriority, setFilterPriority] = useState('all');
+  const [filterCategory, setFilterCategory] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
   const [createSuccess, setCreateSuccess] = useState(false);
   const [serverStats, setServerStats] = useState(null);
@@ -152,6 +172,15 @@ export default function UserPortal({ user }) {
     return { total: list.length, active, resolved, closed, criticalOpen };
   }, [serverStats, tickets]);
 
+  const topCategories = useMemo(() => {
+    const bc = serverStats?.byCategory;
+    if (!bc || typeof bc !== 'object') return [];
+    return Object.entries(bc)
+      .filter(([, n]) => (Number(n) || 0) > 0)
+      .sort((a, b) => (Number(b[1]) || 0) - (Number(a[1]) || 0))
+      .slice(0, 5);
+  }, [serverStats]);
+
   const filteredTickets = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     let list = tickets.filter((t) => {
@@ -162,7 +191,8 @@ export default function UserPortal({ user }) {
         (t.description && t.description.toLowerCase().includes(q));
       const matchesStatus = filterStatus === 'all' || t.status === filterStatus;
       const matchesPriority = filterPriority === 'all' || t.priority === filterPriority;
-      return matchesText && matchesStatus && matchesPriority;
+      const matchesCategory = filterCategory === 'all' || t.category === filterCategory;
+      return matchesText && matchesStatus && matchesPriority && matchesCategory;
     });
     list = [...list].sort((a, b) => {
       const ta = new Date(a.createdAt).getTime();
@@ -170,7 +200,7 @@ export default function UserPortal({ user }) {
       return sortBy === 'newest' ? tb - ta : ta - tb;
     });
     return list;
-  }, [tickets, searchQuery, filterStatus, filterPriority, sortBy]);
+  }, [tickets, searchQuery, filterStatus, filterPriority, filterCategory, sortBy]);
 
   const displayName = [user?.firstName, user?.lastName].filter(Boolean).join(' ') || user?.email || 'there';
 
@@ -206,7 +236,7 @@ export default function UserPortal({ user }) {
       setSubmitting(true);
       setCreateError(null);
       await createTicket(form);
-      setForm({ title: '', description: '', priority: 'MEDIUM' });
+      setForm({ title: '', description: '', priority: 'MEDIUM', category: 'GENERAL_INQUIRY' });
       setCreateSuccess(true);
       fetchTickets();
     } catch {
@@ -257,6 +287,31 @@ export default function UserPortal({ user }) {
                   </div>
                 )}
               </div>
+              {topCategories.length > 0 && (
+                <div style={{ marginBottom: 16, padding: '12px 14px', borderRadius: 10, background: colors.gray100, border: `1px solid ${colors.gray200}` }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: colors.gray500, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 8 }}>
+                    Tickets by category
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    {topCategories.map(([cat, count]) => (
+                      <span
+                        key={cat}
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 600,
+                          color: colors.gray700,
+                          background: '#fff',
+                          padding: '6px 10px',
+                          borderRadius: 8,
+                          border: `1px solid ${colors.gray200}`,
+                        }}
+                      >
+                        {formatCategoryLabel(cat)} · {count}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div style={styles.toolbar}>
                 <input
                   type="search"
@@ -289,6 +344,17 @@ export default function UserPortal({ user }) {
                   <option value="MEDIUM">Medium</option>
                   <option value="HIGH">High</option>
                   <option value="CRITICAL">Critical</option>
+                </select>
+                <select
+                  style={styles.filterSelect}
+                  value={filterCategory}
+                  onChange={(e) => setFilterCategory(e.target.value)}
+                  aria-label="Filter by category"
+                >
+                  <option value="all">All categories</option>
+                  {TICKET_CATEGORY_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
                 </select>
                 <select
                   style={styles.filterSelect}
@@ -348,6 +414,7 @@ export default function UserPortal({ user }) {
                   setSearchQuery('');
                   setFilterStatus('all');
                   setFilterPriority('all');
+                  setFilterCategory('all');
                 }}
                 style={{
                   display: 'block', margin: '16px auto 0', background: 'none', border: 'none',
@@ -387,6 +454,17 @@ export default function UserPortal({ user }) {
                   }}>
                     {t.priority}
                   </span>
+                  {t.category && (
+                    <span style={{
+                      ...styles.badge,
+                      background: `${colors.gray200}`,
+                      color: colors.gray700,
+                      textTransform: 'none',
+                      fontWeight: 500,
+                    }}>
+                      {formatCategoryLabel(t.category)}
+                    </span>
+                  )}
                 </div>
               </div>
             ))
@@ -438,6 +516,16 @@ export default function UserPortal({ user }) {
               <option value="MEDIUM">Medium</option>
               <option value="HIGH">High</option>
               <option value="CRITICAL">Critical</option>
+            </select>
+            <label style={styles.label}>Category</label>
+            <select
+              style={styles.select}
+              value={form.category}
+              onChange={(e) => setForm({ ...form, category: e.target.value })}
+            >
+              {TICKET_CATEGORY_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
             </select>
             <button type="submit" style={styles.submitBtn} disabled={submitting}>
               {submitting ? 'Creating...' : 'Create Ticket'}

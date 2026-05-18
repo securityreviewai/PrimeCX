@@ -35,6 +35,11 @@ public class Ticket {
     @Builder.Default
     private TicketPriority priority = TicketPriority.MEDIUM;
 
+    @Enumerated(EnumType.STRING)
+    @Column(length = 48)
+    @Builder.Default
+    private TicketCategory category = TicketCategory.GENERAL_INQUIRY;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
@@ -61,6 +66,9 @@ public class Ticket {
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
+        if (category == null) {
+            category = TicketCategory.GENERAL_INQUIRY;
+        }
     }
 
     @PreUpdate

@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import org.springframework.data.jpa.domain.Specification;
 
 import com.primecx.model.Ticket;
+import com.primecx.model.TicketCategory;
 import com.primecx.model.TicketPriority;
 import com.primecx.model.TicketStatus;
 import com.primecx.model.User;
@@ -28,6 +29,10 @@ public final class TicketSpecifications {
 
     public static Specification<Ticket> hasPriority(TicketPriority priority) {
         return (root, query, cb) -> cb.equal(root.get("priority"), priority);
+    }
+
+    public static Specification<Ticket> hasCategory(TicketCategory category) {
+        return (root, query, cb) -> cb.equal(root.get("category"), category);
     }
 
     public static Specification<Ticket> unassignedClaimable() {

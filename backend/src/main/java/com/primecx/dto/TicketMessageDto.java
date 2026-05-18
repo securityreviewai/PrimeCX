@@ -8,6 +8,7 @@ public record TicketMessageDto(
         String body,
         LocalDateTime createdAt,
         Long authorUserId,
-        String authorName
+        String authorName,
+        boolean internalNote
 ) {
 }

@@ -13,6 +13,7 @@ import {
   deleteTicketAttachment,
   submitTicketSatisfaction,
   getTicketActivity,
+  applyTicketAiClassification,
 } from '../services/api';
 
 const colors = {
@@ -23,6 +24,25 @@ const colors = {
 
 const priorityColors = { LOW: colors.success, MEDIUM: colors.warning, HIGH: '#F97316', CRITICAL: colors.danger };
 const statusColors = { OPEN: colors.primary, IN_PROGRESS: colors.warning, RESOLVED: colors.success, CLOSED: colors.gray500 };
+
+const TICKET_CATEGORY_OPTIONS = [
+  { value: 'GENERAL_INQUIRY', label: 'General inquiry' },
+  { value: 'BILLING', label: 'Billing' },
+  { value: 'TECHNICAL', label: 'Technical' },
+  { value: 'ACCOUNT', label: 'Account' },
+  { value: 'PRODUCT_FEEDBACK', label: 'Product feedback' },
+  { value: 'SERVICE_OUTAGE', label: 'Service outage' },
+  { value: 'COMPLAINT', label: 'Complaint' },
+  { value: 'FEATURE_REQUEST', label: 'Feature request' },
+];
+
+function formatCategoryLabel(cat) {
+  if (!cat) return '';
+  return String(cat)
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, (ch) => ch.toUpperCase());
+}
 
 const styles = {
   backBtn: {
@@ -73,6 +93,10 @@ const styles = {
     lineHeight: 1.45,
   },
   activityMeta: { fontSize: 12, color: colors.gray500, marginTop: 4 },
+  msgBoxInternal: {
+    padding: '12px 14px', borderRadius: 10, background: `${colors.warning}12`,
+    marginBottom: 10, border: `1px solid ${colors.warning}55`,
+  },
   msgBox: {
     padding: '12px 14px', borderRadius: 10, background: colors.gray100,
     marginBottom: 10, border: `1px solid ${colors.gray200}`,
@@ -148,6 +172,10 @@ export default function TicketDetail({ user }) {
   const [satFeedback, setSatFeedback] = useState('');
   const [satSubmitting, setSatSubmitting] = useState(false);
   const [activity, setActivity] = useState(null);
+  const [categoryDraft, setCategoryDraft] = useState('GENERAL_INQUIRY');
+  const [catUpdating, setCatUpdating] = useState(false);
+  const [aiApplying, setAiApplying] = useState(false);
+  const [internalReply, setInternalReply] = useState(false);
 
   const rk = roleKey(user?.role);
 
@@ -173,6 +201,7 @@ export default function TicketDetail({ user }) {
       const t = ticketRes.data;
       setTicket(t);
       setStatusUpdate(t.status);
+      setCategoryDraft(t.category || 'GENERAL_INQUIRY');
       setMessages(Array.isArray(msgRes.data) ? msgRes.data : []);
       setAttachments(Array.isArray(attRes.data) ? attRes.data : []);
       setActivity(actRes.data && typeof actRes.data === 'object' ? actRes.data : { content: [], totalElements: 0 });
@@ -237,6 +266,7 @@ export default function TicketDetail({ user }) {
       const res = await getTicket(id);
       setTicket(res.data);
       setStatusUpdate(res.data.status);
+      setCategoryDraft(res.data.category || 'GENERAL_INQUIRY');
     } catch {
       /* silent */
     }
@@ -263,8 +293,10 @@ export default function TicketDetail({ user }) {
     try {
       setPostingMsg(true);
       setError(null);
-      await postTicketMessage(id, msgBody.trim());
+      const payload = { body: msgBody.trim(), ...(internalReply ? { internalNote: true } : {}) };
+      await postTicketMessage(id, payload);
       setMsgBody('');
+      setInternalReply(false);
       await reloadMessages();
       await reloadActivity();
     } catch (e2) {
@@ -272,6 +304,36 @@ export default function TicketDetail({ user }) {
       setError(msg);
     } finally {
       setPostingMsg(false);
+    }
+  };
+
+  const handleSaveCategory = async () => {
+    if (!ticket || categoryDraft === ticket.category) return;
+    try {
+      setCatUpdating(true);
+      setError(null);
+      await updateTicket(id, { category: categoryDraft });
+      await refreshTicketOnly();
+      await reloadActivity();
+    } catch {
+      setError('Failed to update category');
+    } finally {
+      setCatUpdating(false);
+    }
+  };
+
+  const handleApplyAiClassification = async () => {
+    try {
+      setAiApplying(true);
+      setError(null);
+      await applyTicketAiClassification(id);
+      await refreshTicketOnly();
+      await reloadActivity();
+    } catch (e) {
+      const msg = e.response?.data?.message || 'Could not apply AI classification';
+      setError(msg);
+    } finally {
+      setAiApplying(false);
     }
   };
 
@@ -413,6 +475,14 @@ export default function TicketDetail({ user }) {
           }}>
             {ticket.priority}
           </span>
+          <span style={{
+            ...styles.badge,
+            background: colors.gray100,
+            color: colors.gray700,
+            textTransform: 'none',
+          }}>
+            {formatCategoryLabel(ticket.category)}
+          </span>
           <span style={{ fontSize: 13, color: colors.gray500, alignSelf: 'center' }}>
             Created {new Date(ticket.createdAt).toLocaleDateString()}
           </span>
@@ -482,22 +552,58 @@ export default function TicketDetail({ user }) {
         )}
 
         {canChangeStatus && (
-          <div style={{ display: 'flex', alignItems: 'center', paddingTop: 12, borderTop: `1px solid ${colors.gray100}` }}>
-            <span style={{ fontSize: 14, fontWeight: 600, color: colors.gray700, marginRight: 12 }}>Update Status:</span>
-            <select
-              style={styles.select}
-              value={statusUpdate}
-              onChange={(e) => setStatusUpdate(e.target.value)}
-            >
-              <option value="OPEN">Open</option>
-              <option value="IN_PROGRESS">In Progress</option>
-              <option value="RESOLVED">Resolved</option>
-              <option value="CLOSED">Closed</option>
-            </select>
-            <button style={styles.btn} type="button" onClick={handleStatusUpdate} disabled={updating}>
-              {updating ? 'Saving...' : 'Save'}
-            </button>
-          </div>
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12, paddingTop: 12, borderTop: `1px solid ${colors.gray100}` }}>
+              <span style={{ fontSize: 14, fontWeight: 600, color: colors.gray700 }}>Update Status:</span>
+              <select
+                style={styles.select}
+                value={statusUpdate}
+                onChange={(e) => setStatusUpdate(e.target.value)}
+              >
+                <option value="OPEN">Open</option>
+                <option value="IN_PROGRESS">In Progress</option>
+                <option value="RESOLVED">Resolved</option>
+                <option value="CLOSED">Closed</option>
+              </select>
+              <button style={styles.btn} type="button" onClick={handleStatusUpdate} disabled={updating}>
+                {updating ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+            <div style={{ paddingTop: 14, marginTop: 12, borderTop: `1px solid ${colors.gray100}` }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: colors.gray700, marginBottom: 10 }}>Category & AI routing</div>
+              <p style={{ fontSize: 13, color: colors.gray500, marginTop: 0, marginBottom: 12, maxWidth: 560, lineHeight: 1.5 }}>
+                Used for reporting and queues. “Apply AI” runs OpenAI classification and updates category and priority on this ticket.
+              </p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
+                <select
+                  style={styles.select}
+                  value={categoryDraft}
+                  onChange={(e) => setCategoryDraft(e.target.value)}
+                  aria-label="Ticket category"
+                >
+                  {TICKET_CATEGORY_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+                <button
+                  style={styles.btn}
+                  type="button"
+                  onClick={handleSaveCategory}
+                  disabled={catUpdating || categoryDraft === ticket.category}
+                >
+                  {catUpdating ? 'Saving…' : 'Save category'}
+                </button>
+                <button
+                  style={{ ...styles.btnGhost, borderColor: colors.primary, color: colors.primary }}
+                  type="button"
+                  onClick={handleApplyAiClassification}
+                  disabled={aiApplying}
+                >
+                  {aiApplying ? 'Running AI…' : 'Apply AI classification'}
+                </button>
+              </div>
+            </div>
+          </>
         )}
       </div>
 
@@ -580,7 +686,12 @@ export default function TicketDetail({ user }) {
           <div style={styles.empty}>No replies yet.</div>
         ) : (
           messages.map((m) => (
-            <div key={m.id} style={styles.msgBox}>
+            <div key={m.id} style={m.internalNote ? styles.msgBoxInternal : styles.msgBox}>
+              {m.internalNote && (
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#B45309', marginBottom: 8, letterSpacing: '0.02em' }}>
+                  Internal — customer cannot see this
+                </div>
+              )}
               <div style={{ fontSize: 12, fontWeight: 600, color: colors.gray700, marginBottom: 6 }}>
                 {m.authorName}
                 <span style={{ fontWeight: 400, color: colors.gray500, marginLeft: 8 }}>
@@ -594,9 +705,23 @@ export default function TicketDetail({ user }) {
           ))
         )}
         <form onSubmit={handlePostMessage} style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${colors.gray100}` }}>
+          {canChangeStatus && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: colors.gray700, marginBottom: 12, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={internalReply}
+                onChange={(ev) => setInternalReply(ev.target.checked)}
+              />
+              Internal note (visible only to support staff)
+            </label>
+          )}
           <textarea
             style={styles.textarea}
-            placeholder="Write an update visible to everyone on this ticket..."
+            placeholder={
+              canChangeStatus && internalReply
+                ? 'Private note for your team — the customer will not see this…'
+                : 'Write an update visible to everyone on this ticket…'
+            }
             value={msgBody}
             maxLength={4096}
             onChange={(e) => setMsgBody(e.target.value)}

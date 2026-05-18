@@ -7,6 +7,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 import org.springframework.data.domain.Page;
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.primecx.dto.CreateTicketRequest;
 import com.primecx.dto.PagedTicketsResponse;
 import com.primecx.dto.SubmitTicketSatisfactionRequest;
+import com.primecx.dto.TicketCategorizationResult;
 import com.primecx.dto.TicketDto;
 import com.primecx.dto.TicketStatsResponse;
 import com.primecx.dto.UpdateTicketRequest;
@@ -28,6 +30,7 @@ import com.primecx.exception.ResourceNotFoundException;
 import com.primecx.model.Role;
 import com.primecx.model.Ticket;
 import com.primecx.model.TicketActivityType;
+import com.primecx.model.TicketCategory;
 import com.primecx.model.TicketPriority;
 import com.primecx.model.TicketStatus;
 import com.primecx.model.User;
@@ -49,6 +52,7 @@ public class TicketService {
     private final TicketRepository ticketRepository;
     private final UserRepository userRepository;
     private final TicketActivityService ticketActivityService;
+    private final AIAnalysisService aiAnalysisService;
 
     @Transactional
     public Ticket claimTicket(Long ticketId, User executive) {
@@ -83,7 +87,7 @@ public class TicketService {
         Page<Ticket> page = ticketRepository.findAll(spec, pageable);
 
         writer.write('\ufeff');
-        writer.write("id,title,description,status,priority,user_id,user_name,assignee_id,assignee_name,created_at,updated_at,customer_rating,customer_feedback,satisfaction_submitted_at,sla_respond_by,sla_breached\n");
+        writer.write("id,title,description,status,priority,category,user_id,user_name,assignee_id,assignee_name,created_at,updated_at,customer_rating,customer_feedback,satisfaction_submitted_at,sla_respond_by,sla_breached\n");
         for (Ticket ticket : page.getContent()) {
             TicketDto row = toDto(ticket);
             writer.write(Long.toString(row.id()));
@@ -95,6 +99,8 @@ public class TicketService {
             writer.write(row.status() != null ? row.status().name() : "");
             writer.write(',');
             writer.write(row.priority() != null ? row.priority().name() : "");
+            writer.write(',');
+            writer.write(row.category() != null ? row.category().name() : "");
             writer.write(',');
             writer.write(Long.toString(row.userId()));
             writer.write(',');
@@ -159,6 +165,7 @@ public class TicketService {
         ticket.setTitle(request.title());
         ticket.setDescription(request.description());
         ticket.setPriority(request.priority());
+        ticket.setCategory(request.category() != null ? request.category() : TicketCategory.GENERAL_INQUIRY);
         ticket.setStatus(TicketStatus.OPEN);
         ticket.setUser(user);
         ticket.setCreatedAt(now);
@@ -178,6 +185,7 @@ public class TicketService {
 
         TicketStatus prevStatus = ticket.getStatus();
         TicketPriority prevPriority = ticket.getPriority();
+        TicketCategory prevCategory = ticket.getCategory();
         String prevTitle = ticket.getTitle();
         String prevDesc = ticket.getDescription();
         Long prevAssigneeId = ticket.getAssignedTo() != null ? ticket.getAssignedTo().getId() : null;
@@ -205,6 +213,13 @@ public class TicketService {
                 ticket.setPriority(request.priority());
                 ticket.setSlaRespondBy(computeSlaRespondBy(request.priority(), LocalDateTime.now()));
                 notes.add("Priority: " + prevPriority + " → " + request.priority());
+            }
+            if (request.category() != null && !Objects.equals(request.category(), prevCategory)) {
+                ticket.setCategory(request.category());
+                notes.add("Category: "
+                        + (prevCategory != null ? prevCategory : TicketCategory.GENERAL_INQUIRY)
+                        + " → "
+                        + request.category());
             }
             if (request.assignedToId() != null) {
                 Long aid = request.assignedToId();
@@ -302,13 +317,16 @@ public class TicketService {
 
     @Transactional(readOnly = true)
     public PagedTicketsResponse searchTickets(User viewer, TicketStatus status,
-            TicketPriority priority, String q, Pageable pageable) {
+            TicketPriority priority, TicketCategory category, String q, Pageable pageable) {
         Specification<Ticket> spec = Specification.where(TicketSpecifications.visibleToUser(viewer));
         if (status != null) {
             spec = spec.and(TicketSpecifications.hasStatus(status));
         }
         if (priority != null) {
             spec = spec.and(TicketSpecifications.hasPriority(priority));
+        }
+        if (category != null) {
+            spec = spec.and(TicketSpecifications.hasCategory(category));
         }
         spec = spec.and(TicketSpecifications.matchesSearch(q));
 
@@ -344,11 +362,15 @@ public class TicketService {
         for (TicketStatus s : TicketStatus.values()) {
             byStatus.put(s, ticketRepository.count(base.and(TicketSpecifications.hasStatus(s))));
         }
+        EnumMap<TicketCategory, Long> byCategory = new EnumMap<>(TicketCategory.class);
+        for (TicketCategory c : TicketCategory.values()) {
+            byCategory.put(c, ticketRepository.count(base.and(TicketSpecifications.hasCategory(c))));
+        }
         long activeCount = byStatus.getOrDefault(TicketStatus.OPEN, 0L)
                 + byStatus.getOrDefault(TicketStatus.IN_PROGRESS, 0L);
         long resolvedCount = byStatus.getOrDefault(TicketStatus.RESOLVED, 0L)
                 + byStatus.getOrDefault(TicketStatus.CLOSED, 0L);
-        return new TicketStatsResponse(byStatus, total, activeCount, resolvedCount);
+        return new TicketStatsResponse(byStatus, byCategory, total, activeCount, resolvedCount);
     }
 
     @Transactional(readOnly = true)
@@ -377,6 +399,7 @@ public class TicketService {
                 ticket.getDescription(),
                 ticket.getStatus(),
                 ticket.getPriority(),
+                ticket.getCategory() != null ? ticket.getCategory() : TicketCategory.GENERAL_INQUIRY,
                 ticket.getUser().getId(),
                 userName,
                 assignedToId,
@@ -417,5 +440,46 @@ public class TicketService {
                 "Rating " + request.rating() + "/5");
         log.info("Recorded satisfaction {} for ticket {}", request.rating(), ticketId);
         return toDto(saved);
+    }
+
+    /**
+     * Runs AI categorization and persists suggested category + priority on the ticket (support roles).
+     */
+    @Transactional
+    public TicketDto applyAiClassification(Long ticketId, User actor) {
+        if (actor.getRole() != Role.ROLE_SUPPORT_ADMIN
+                && actor.getRole() != Role.ROLE_SUPPORT_MANAGER
+                && actor.getRole() != Role.ROLE_SUPPORT_EXECUTIVE) {
+            throw new ForbiddenException("Only support staff can apply AI classification.");
+        }
+        Ticket ticket = getTicketVisibleTo(ticketId, actor);
+        TicketCategorizationResult result = aiAnalysisService.categorizeTicket(ticketId);
+        TicketCategory newCat = TicketCategory.fromAiSlug(result.suggestedCategory());
+        TicketPriority newPri = parseSuggestedPriority(result.suggestedPriority());
+        TicketCategory prevCat = ticket.getCategory() != null ? ticket.getCategory() : TicketCategory.GENERAL_INQUIRY;
+        TicketPriority prevPri = ticket.getPriority();
+
+        ticket.setCategory(newCat);
+        ticket.setPriority(newPri);
+        ticket.setSlaRespondBy(computeSlaRespondBy(newPri, LocalDateTime.now()));
+        ticket.setUpdatedAt(LocalDateTime.now());
+        Ticket saved = ticketRepository.save(ticket);
+
+        ticketActivityService.record(saved.getId(), actor, TicketActivityType.TICKET_UPDATED,
+                "AI classification applied — category "
+                        + prevCat + " → " + newCat + "; priority " + prevPri + " → " + newPri);
+        log.info("Applied AI classification on ticket {}", ticketId);
+        return toDto(saved);
+    }
+
+    private static TicketPriority parseSuggestedPriority(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return TicketPriority.MEDIUM;
+        }
+        try {
+            return TicketPriority.valueOf(raw.strip().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            return TicketPriority.MEDIUM;
+        }
     }
 }

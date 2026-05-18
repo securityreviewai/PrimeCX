@@ -59,6 +59,11 @@ function formatDuration(seconds) {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
+function formatCategorySnippet(cat) {
+  if (!cat) return '';
+  return String(cat).replace(/_/g, ' ');
+}
+
 export default function SupportConsole({ user }) {
   const navigate = useNavigate();
   const [tickets, setTickets] = useState([]);
@@ -195,6 +200,7 @@ export default function SupportConsole({ user }) {
                       <div style={{ fontWeight: 600, fontSize: 14 }}>{t.title}</div>
                       <div style={{ fontSize: 12, color: colors.gray500, marginTop: 2 }}>
                         #{t.id} &middot; {t.userName || 'Customer'}
+                        {t.category ? ` · ${formatCategorySnippet(t.category)}` : ''}
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -237,6 +243,7 @@ export default function SupportConsole({ user }) {
                     <div style={{ fontWeight: 600, fontSize: 14 }}>{t.title}</div>
                     <div style={{ fontSize: 12, color: colors.gray500, marginTop: 2 }}>
                       #{t.id}
+                      {t.category ? ` · ${formatCategorySnippet(t.category)}` : ''}
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>

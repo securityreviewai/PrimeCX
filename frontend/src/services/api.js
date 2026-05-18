@@ -65,8 +65,15 @@ export const getSlaBreachedTickets = (params = {}) =>
 
 export const getTicketMessages = (ticketId) => api.get(`/tickets/${ticketId}/messages`);
 
-export const postTicketMessage = (ticketId, body) =>
-  api.post(`/tickets/${ticketId}/messages`, { body });
+export const postTicketMessage = (ticketId, payload) => {
+  if (typeof payload === 'string') {
+    return api.post(`/tickets/${ticketId}/messages`, { body: payload });
+  }
+  return api.post(`/tickets/${ticketId}/messages`, {
+    body: payload.body,
+    ...(payload.internalNote ? { internalNote: true } : {}),
+  });
+};
 
 export const getTicketAttachments = (ticketId) => api.get(`/tickets/${ticketId}/attachments`);
 
@@ -89,6 +96,9 @@ export const exportTicketsCsv = () =>
 
 export const createTicket = (data) => api.post('/tickets', data);
 export const updateTicket = (id, data) => api.put(`/tickets/${id}`, data);
+
+export const applyTicketAiClassification = (ticketId) =>
+  api.post(`/tickets/${ticketId}/classification/apply-ai`);
 
 export const getSessions = () => api.get('/sessions');
 export const startSession = (data) => api.post('/sessions', data);

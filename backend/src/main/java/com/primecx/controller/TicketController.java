@@ -32,6 +32,7 @@ import com.primecx.dto.TicketStatsResponse;
 import com.primecx.dto.UpdateTicketRequest;
 import com.primecx.model.Role;
 import com.primecx.model.Ticket;
+import com.primecx.model.TicketCategory;
 import com.primecx.model.TicketPriority;
 import com.primecx.model.TicketStatus;
 import com.primecx.model.User;
@@ -85,10 +86,11 @@ public class TicketController {
             @AuthenticationPrincipal OidcUser oidcUser,
             @RequestParam(required = false) TicketStatus status,
             @RequestParam(required = false) TicketPriority priority,
+            @RequestParam(required = false) TicketCategory category,
             @RequestParam(required = false, name = "q") String q,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         User currentUser = userService.getUserByOktaId(oidcUser.getSubject());
-        return ResponseEntity.ok(ticketService.searchTickets(currentUser, status, priority, q, pageable));
+        return ResponseEntity.ok(ticketService.searchTickets(currentUser, status, priority, category, q, pageable));
     }
 
     @GetMapping("/stats")
@@ -171,6 +173,15 @@ public class TicketController {
         User currentUser = userService.getUserByOktaId(oidcUser.getSubject());
         Ticket ticket = ticketService.updateTicket(id, request, currentUser);
         return ResponseEntity.ok(ticketService.toDto(ticket));
+    }
+
+    @PostMapping("/{id:\\d+}/classification/apply-ai")
+    @PreAuthorize("hasAnyRole('SUPPORT_EXECUTIVE', 'SUPPORT_ADMIN', 'SUPPORT_MANAGER')")
+    public ResponseEntity<TicketDto> applyAiClassification(
+            @PathVariable Long id,
+            @AuthenticationPrincipal OidcUser oidcUser) {
+        User currentUser = userService.getUserByOktaId(oidcUser.getSubject());
+        return ResponseEntity.ok(ticketService.applyAiClassification(id, currentUser));
     }
 
     @PostMapping("/{id:\\d+}/satisfaction")
