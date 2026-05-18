@@ -47,6 +47,13 @@ public class Ticket {
 
     private LocalDateTime updatedAt;
 
+    private Integer customerRating;
+
+    @Column(length = 2000)
+    private String customerFeedback;
+
+    private LocalDateTime satisfactionSubmittedAt;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

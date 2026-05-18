@@ -16,5 +16,8 @@ public record TicketDto(
         Long assignedToId,
         String assignedToName,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        Integer customerRating,
+        String customerFeedback,
+        LocalDateTime satisfactionSubmittedAt
 ) {}

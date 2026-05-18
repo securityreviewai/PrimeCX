@@ -25,6 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.primecx.dto.CreateTicketMessageRequest;
 import com.primecx.dto.CreateTicketRequest;
 import com.primecx.dto.PagedTicketsResponse;
+import com.primecx.dto.SubmitTicketSatisfactionRequest;
 import com.primecx.dto.TicketDto;
 import com.primecx.dto.TicketMessageDto;
 import com.primecx.dto.TicketStatsResponse;
@@ -162,6 +163,15 @@ public class TicketController {
         User currentUser = userService.getUserByOktaId(oidcUser.getSubject());
         Ticket ticket = ticketService.updateTicket(id, request, currentUser);
         return ResponseEntity.ok(ticketService.toDto(ticket));
+    }
+
+    @PostMapping("/{id:\\d+}/satisfaction")
+    public ResponseEntity<TicketDto> submitSatisfaction(
+            @PathVariable Long id,
+            @Valid @RequestBody SubmitTicketSatisfactionRequest body,
+            @AuthenticationPrincipal OidcUser oidcUser) {
+        User currentUser = userService.getUserByOktaId(oidcUser.getSubject());
+        return ResponseEntity.ok(ticketService.submitSatisfaction(id, currentUser, body));
     }
 
     @GetMapping("/status/{status}")

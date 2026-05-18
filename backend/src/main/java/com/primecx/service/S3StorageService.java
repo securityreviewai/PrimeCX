@@ -80,6 +80,19 @@ public class S3StorageService {
     }
 
     public String generateRecordingKey(Long sessionId, String fileName) {
-        return "recordings/" + sessionId + "/" + UUID.randomUUID() + "_" + fileName;
+        return "recordings/" + sessionId + "/" + UUID.randomUUID() + "_" + sanitizeFileSegment(fileName);
+    }
+
+    public String generateTicketAttachmentKey(Long ticketId, String fileName) {
+        return "ticket-attachments/" + ticketId + "/" + UUID.randomUUID() + "_" + sanitizeFileSegment(fileName);
+    }
+
+    private static String sanitizeFileSegment(String fileName) {
+        if (fileName == null || fileName.isBlank()) {
+            return "file";
+        }
+        String cleaned = fileName.replaceAll("[^a-zA-Z0-9._-]", "_");
+        int max = 180;
+        return cleaned.length() > max ? cleaned.substring(0, max) : cleaned;
     }
 }

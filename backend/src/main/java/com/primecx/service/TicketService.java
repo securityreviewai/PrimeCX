@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.primecx.dto.CreateTicketRequest;
 import com.primecx.dto.PagedTicketsResponse;
+import com.primecx.dto.SubmitTicketSatisfactionRequest;
 import com.primecx.dto.TicketDto;
 import com.primecx.dto.TicketStatsResponse;
 import com.primecx.dto.UpdateTicketRequest;
@@ -77,7 +78,7 @@ public class TicketService {
         Page<Ticket> page = ticketRepository.findAll(spec, pageable);
 
         writer.write('\ufeff');
-        writer.write("id,title,description,status,priority,user_id,user_name,assignee_id,assignee_name,created_at,updated_at\n");
+        writer.write("id,title,description,status,priority,user_id,user_name,assignee_id,assignee_name,created_at,updated_at,customer_rating,customer_feedback,satisfaction_submitted_at\n");
         for (Ticket ticket : page.getContent()) {
             TicketDto row = toDto(ticket);
             writer.write(Long.toString(row.id()));
@@ -101,6 +102,12 @@ public class TicketService {
             writer.write(row.createdAt() != null ? CSV_INSTANT.format(row.createdAt()) : "");
             writer.write(',');
             writer.write(row.updatedAt() != null ? CSV_INSTANT.format(row.updatedAt()) : "");
+            writer.write(',');
+            writer.write(row.customerRating() != null ? Integer.toString(row.customerRating()) : "");
+            writer.write(',');
+            writer.write(row.customerFeedback() != null ? csvField(row.customerFeedback()) : "");
+            writer.write(',');
+            writer.write(row.satisfactionSubmittedAt() != null ? CSV_INSTANT.format(row.satisfactionSubmittedAt()) : "");
             writer.write('\n');
         }
         return page.getTotalElements() > EXPORT_ROW_CAP;
@@ -303,7 +310,36 @@ public class TicketService {
                 assignedToId,
                 assignedToName,
                 ticket.getCreatedAt(),
-                ticket.getUpdatedAt()
-        );
+                ticket.getUpdatedAt(),
+                ticket.getCustomerRating(),
+                ticket.getCustomerFeedback(),
+                ticket.getSatisfactionSubmittedAt());
+    }
+
+    @Transactional
+    public TicketDto submitSatisfaction(Long ticketId, User customer, SubmitTicketSatisfactionRequest request) {
+        if (customer.getRole() != Role.ROLE_USER) {
+            throw new ForbiddenException("Only customers can submit satisfaction feedback.");
+        }
+        Ticket ticket = getTicketById(ticketId);
+        if (!ticket.getUser().getId().equals(customer.getId())) {
+            throw new ForbiddenException("You can only rate your own tickets.");
+        }
+        if (ticket.getStatus() != TicketStatus.RESOLVED && ticket.getStatus() != TicketStatus.CLOSED) {
+            throw new IllegalArgumentException(
+                    "Feedback can be submitted after the ticket is resolved or closed.");
+        }
+        if (ticket.getCustomerRating() != null) {
+            throw new IllegalArgumentException("Feedback has already been submitted for this ticket.");
+        }
+
+        ticket.setCustomerRating(request.rating());
+        String fb = request.feedback();
+        ticket.setCustomerFeedback(fb != null && !fb.isBlank() ? fb.strip() : null);
+        ticket.setSatisfactionSubmittedAt(LocalDateTime.now());
+        ticket.setUpdatedAt(LocalDateTime.now());
+        Ticket saved = ticketRepository.save(ticket);
+        log.info("Recorded satisfaction {} for ticket {}", request.rating(), ticketId);
+        return toDto(saved);
     }
 }

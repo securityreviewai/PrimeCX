@@ -56,6 +56,20 @@ export const getTicketMessages = (ticketId) => api.get(`/tickets/${ticketId}/mes
 export const postTicketMessage = (ticketId, body) =>
   api.post(`/tickets/${ticketId}/messages`, { body });
 
+export const getTicketAttachments = (ticketId) => api.get(`/tickets/${ticketId}/attachments`);
+
+export const requestTicketAttachmentUploadUrl = (ticketId, payload) =>
+  api.post(`/tickets/${ticketId}/attachments/upload-url`, payload);
+
+export const confirmTicketAttachment = (ticketId, payload) =>
+  api.post(`/tickets/${ticketId}/attachments/confirm`, payload);
+
+export const deleteTicketAttachment = (ticketId, attachmentId) =>
+  api.delete(`/tickets/${ticketId}/attachments/${attachmentId}`);
+
+export const submitTicketSatisfaction = (ticketId, payload) =>
+  api.post(`/tickets/${ticketId}/satisfaction`, payload);
+
 export const claimTicket = (id) => api.post(`/tickets/${id}/claim`);
 
 export const exportTicketsCsv = () =>

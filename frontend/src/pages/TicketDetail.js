@@ -1,6 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getTicket, updateTicket, getSessions, getRecordingsBySession, getTicketMessages, postTicketMessage } from '../services/api';
+import {
+  getTicket,
+  updateTicket,
+  getSessions,
+  getRecordingsBySession,
+  getTicketMessages,
+  postTicketMessage,
+  getTicketAttachments,
+  requestTicketAttachmentUploadUrl,
+  confirmTicketAttachment,
+  deleteTicketAttachment,
+  submitTicketSatisfaction,
+} from '../services/api';
 
 const colors = {
   primary: '#4F46E5', success: '#10B981', warning: '#F59E0B',
@@ -33,6 +45,10 @@ const styles = {
     padding: '8px 20px', borderRadius: 8, border: 'none', fontSize: 14,
     fontWeight: 600, cursor: 'pointer', color: '#fff', background: colors.primary,
   },
+  btnGhost: {
+    padding: '8px 16px', borderRadius: 8, border: `1px solid ${colors.gray200}`,
+    fontSize: 13, fontWeight: 600, cursor: 'pointer', background: '#fff', color: colors.gray700,
+  },
   sessionRow: {
     padding: '12px 16px', borderRadius: 8, border: `1px solid ${colors.gray200}`,
     marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -49,64 +65,109 @@ const styles = {
   },
 };
 
+function guessMime(file) {
+  if (file.type) return file.type;
+  const n = file.name.toLowerCase();
+  if (n.endsWith('.pdf')) return 'application/pdf';
+  if (n.endsWith('.png')) return 'image/png';
+  if (n.endsWith('.jpg') || n.endsWith('.jpeg')) return 'image/jpeg';
+  if (n.endsWith('.gif')) return 'image/gif';
+  if (n.endsWith('.webp')) return 'image/webp';
+  if (n.endsWith('.txt')) return 'text/plain';
+  return '';
+}
+
+function roleKey(r) {
+  if (r == null || r === '') return '';
+  let s = String(r);
+  if (s.startsWith('ROLE_')) {
+    s = s.slice(5);
+  }
+  return s.toLowerCase();
+}
+
+function Stars({ value }) {
+  const filled = Math.round(Number(value) || 0);
+  return (
+    <span style={{ letterSpacing: 2, color: colors.warning, fontSize: 18 }} aria-hidden>
+      {'★'.repeat(filled)}{'☆'.repeat(Math.max(0, 5 - filled))}
+    </span>
+  );
+}
+
 export default function TicketDetail({ user }) {
   const { id } = useParams();
   const navigate = useNavigate();
+  const fileRef = useRef(null);
+
   const [ticket, setTicket] = useState(null);
   const [sessions, setSessions] = useState([]);
   const [recordings, setRecordings] = useState({});
   const [messages, setMessages] = useState([]);
+  const [attachments, setAttachments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [statusUpdate, setStatusUpdate] = useState('');
   const [updating, setUpdating] = useState(false);
   const [msgBody, setMsgBody] = useState('');
   const [postingMsg, setPostingMsg] = useState(false);
+  const [attachBusy, setAttachBusy] = useState(false);
+  const [satRating, setSatRating] = useState(5);
+  const [satFeedback, setSatFeedback] = useState('');
+  const [satSubmitting, setSatSubmitting] = useState(false);
+
+  const rk = roleKey(user?.role);
 
   const canChangeStatus =
-    user?.role === 'support_executive'
-    || user?.role === 'support_admin'
-    || user?.role === 'support_manager';
+    rk === 'support_executive'
+    || rk === 'support_admin'
+    || rk === 'support_manager';
+
+  const isCustomer = rk === 'user';
+  const isAdmin = rk === 'support_admin';
+
+  const loadDetail = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const [ticketRes, sessionsRes, msgRes, attRes] = await Promise.all([
+        getTicket(id),
+        getSessions(),
+        getTicketMessages(id).catch(() => ({ data: [] })),
+        getTicketAttachments(id).catch(() => ({ data: [] })),
+      ]);
+      const t = ticketRes.data;
+      setTicket(t);
+      setStatusUpdate(t.status);
+      setMessages(Array.isArray(msgRes.data) ? msgRes.data : []);
+      setAttachments(Array.isArray(attRes.data) ? attRes.data : []);
+
+      const ticketSessions = sessionsRes.data.filter((s) => String(s.ticketId) === String(id));
+      setSessions(ticketSessions);
+
+      const recs = {};
+      for (const s of ticketSessions) {
+        try {
+          const r = await getRecordingsBySession(s.id);
+          recs[s.id] = r.data;
+        } catch {
+          recs[s.id] = [];
+        }
+      }
+      setRecordings(recs);
+    } catch (e) {
+      const msg =
+        e.response?.data?.message ||
+        (e.response?.status === 403 ? 'Access denied.' : null) ||
+        'Failed to load ticket details';
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const [ticketRes, sessionsRes, msgRes] = await Promise.all([
-          getTicket(id),
-          getSessions(),
-          getTicketMessages(id).catch(() => ({ data: [] })),
-        ]);
-        const t = ticketRes.data;
-        setTicket(t);
-        setStatusUpdate(t.status);
-        setMessages(Array.isArray(msgRes.data) ? msgRes.data : []);
-
-        const ticketSessions = sessionsRes.data.filter((s) => String(s.ticketId) === String(id));
-        setSessions(ticketSessions);
-
-        const recs = {};
-        for (const s of ticketSessions) {
-          try {
-            const r = await getRecordingsBySession(s.id);
-            recs[s.id] = r.data;
-          } catch {
-            recs[s.id] = [];
-          }
-        }
-        setRecordings(recs);
-      } catch (e) {
-        const msg =
-          e.response?.data?.message ||
-          (e.response?.status === 403 ? 'Access denied.' : null) ||
-          'Failed to load ticket details';
-        setError(msg);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
+    loadDetail();
   }, [id]);
 
   const reloadMessages = async () => {
@@ -118,13 +179,32 @@ export default function TicketDetail({ user }) {
     }
   };
 
+  const reloadAttachments = async () => {
+    try {
+      const res = await getTicketAttachments(id);
+      setAttachments(res.data || []);
+    } catch {
+      /* silent */
+    }
+  };
+
+  const refreshTicketOnly = async () => {
+    try {
+      const res = await getTicket(id);
+      setTicket(res.data);
+      setStatusUpdate(res.data.status);
+    } catch {
+      /* silent */
+    }
+  };
+
   const handleStatusUpdate = async () => {
     if (!statusUpdate || statusUpdate === ticket.status) return;
     try {
       setUpdating(true);
       setError(null);
       await updateTicket(id, { status: statusUpdate });
-      setTicket({ ...ticket, status: statusUpdate });
+      await refreshTicketOnly();
     } catch {
       setError('Failed to update status');
     } finally {
@@ -149,6 +229,83 @@ export default function TicketDetail({ user }) {
     }
   };
 
+  const handlePickFile = () => fileRef.current?.click();
+
+  const handleFileSelected = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    const ct = guessMime(file);
+    if (!ct) {
+      setError('Could not detect file type. Use PNG, JPEG, GIF, WebP, PDF, or TXT.');
+      return;
+    }
+    try {
+      setAttachBusy(true);
+      setError(null);
+      const urlRes = await requestTicketAttachmentUploadUrl(id, { fileName: file.name, contentType: ct });
+      const { uploadUrl, s3Key, contentTypeForUpload } = urlRes.data;
+      const put = await fetch(uploadUrl, {
+        method: 'PUT',
+        body: file,
+        headers: { 'Content-Type': contentTypeForUpload },
+      });
+      if (!put.ok) {
+        throw new Error(`Upload failed (${put.status})`);
+      }
+      await confirmTicketAttachment(id, {
+        s3Key,
+        fileName: file.name,
+        contentType: ct,
+        fileSize: file.size,
+      });
+      await reloadAttachments();
+    } catch {
+      setError('Attachment upload failed. Check file type/size (max 25 MB) and try again.');
+    } finally {
+      setAttachBusy(false);
+    }
+  };
+
+  const handleDeleteAttachment = async (attachmentId) => {
+    if (!window.confirm('Delete this attachment from storage and database?')) return;
+    try {
+      setError(null);
+      await deleteTicketAttachment(id, attachmentId);
+      await reloadAttachments();
+    } catch {
+      setError('Could not delete attachment.');
+    }
+  };
+
+  const handleSatisfactionSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      setSatSubmitting(true);
+      setError(null);
+      const payload = {
+        rating: Number(satRating),
+        ...(satFeedback.trim() ? { feedback: satFeedback.trim() } : {}),
+      };
+      await submitTicketSatisfaction(id, payload);
+      await refreshTicketOnly();
+      setSatFeedback('');
+    } catch (e3) {
+      const msg = e3.response?.data?.message || 'Could not submit feedback.';
+      setError(msg);
+    } finally {
+      setSatSubmitting(false);
+    }
+  };
+
+  const canSubmitSatisfaction =
+    isCustomer
+    && ticket
+    && user?.id != null
+    && ticket.userId === user.id
+    && (ticket.status === 'RESOLVED' || ticket.status === 'CLOSED')
+    && ticket.customerRating == null;
+
   if (loading) return <div style={styles.empty}>Loading ticket...</div>;
   if (error && !ticket) return <div style={{ ...styles.empty, color: colors.danger }}>{error}</div>;
   if (!ticket) return null;
@@ -156,6 +313,14 @@ export default function TicketDetail({ user }) {
   return (
     <div>
       <button style={styles.backBtn} type="button" onClick={() => navigate(-1)}>&larr; Back</button>
+
+      <input
+        ref={fileRef}
+        type="file"
+        accept=".png,.jpg,.jpeg,.gif,.webp,.pdf,.txt,image/png,image/jpeg,image/gif,image/webp,application/pdf,text/plain"
+        style={{ display: 'none' }}
+        onChange={handleFileSelected}
+      />
 
       {error && (
         <div
@@ -198,6 +363,62 @@ export default function TicketDetail({ user }) {
 
         <p style={styles.description}>{ticket.description || 'No description provided.'}</p>
 
+        {ticket.customerRating != null && (
+          <div style={{ paddingTop: 12, marginBottom: 12, borderTop: `1px solid ${colors.gray100}` }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: colors.gray700, marginBottom: 6 }}>
+              Customer satisfaction
+            </div>
+            <Stars value={ticket.customerRating} />
+            <span style={{ marginLeft: 10, fontSize: 14, color: colors.gray700 }}>
+              {ticket.customerRating}/5
+              {ticket.satisfactionSubmittedAt && (
+                <span style={{ color: colors.gray500, marginLeft: 8 }}>
+                  ({new Date(ticket.satisfactionSubmittedAt).toLocaleString()})
+                </span>
+              )}
+            </span>
+            {ticket.customerFeedback && (
+              <p style={{ marginTop: 10, fontSize: 14, color: colors.gray700, fontStyle: 'italic', lineHeight: 1.5 }}>
+                “{ticket.customerFeedback}”
+              </p>
+            )}
+          </div>
+        )}
+
+        {canSubmitSatisfaction && (
+          <div style={{ paddingTop: 12, marginBottom: 12, borderTop: `1px solid ${colors.gray100}` }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: colors.gray900, marginBottom: 10 }}>
+              How did we do?
+            </div>
+            <p style={{ fontSize: 13, color: colors.gray500, marginBottom: 12 }}>
+              This ticket is closed out. Share a quick rating once — it helps us improve support.
+            </p>
+            <form onSubmit={handleSatisfactionSubmit}>
+              <label htmlFor="sat-rating" style={{ fontSize: 13, fontWeight: 600, color: colors.gray700 }}>Rating</label>
+              <select
+                id="sat-rating"
+                style={{ ...styles.select, display: 'block', marginBottom: 12 }}
+                value={satRating}
+                onChange={(ev) => setSatRating(ev.target.value)}
+              >
+                {[5, 4, 3, 2, 1].map((n) => (
+                  <option key={n} value={n}>{n} — {n >= 4 ? 'Great' : n === 3 ? 'Okay' : 'Needs work'}</option>
+                ))}
+              </select>
+              <textarea
+                style={styles.textarea}
+                placeholder="Optional comments for our team..."
+                value={satFeedback}
+                maxLength={2000}
+                onChange={(ev) => setSatFeedback(ev.target.value)}
+              />
+              <button style={styles.btn} type="submit" disabled={satSubmitting}>
+                {satSubmitting ? 'Submitting…' : 'Submit feedback'}
+              </button>
+            </form>
+          </div>
+        )}
+
         {canChangeStatus && (
           <div style={{ display: 'flex', alignItems: 'center', paddingTop: 12, borderTop: `1px solid ${colors.gray100}` }}>
             <span style={{ fontSize: 14, fontWeight: 600, color: colors.gray700, marginRight: 12 }}>Update Status:</span>
@@ -215,6 +436,56 @@ export default function TicketDetail({ user }) {
               {updating ? 'Saving...' : 'Save'}
             </button>
           </div>
+        )}
+      </div>
+
+      <div style={styles.card}>
+        <h3 style={styles.sectionTitle}>Attachments</h3>
+        <p style={{ fontSize: 13, color: colors.gray500, marginTop: -6, marginBottom: 14 }}>
+          Screenshots, PDFs, or notes up to 25 MB (stored securely in your recordings bucket).
+        </p>
+        <button type="button" style={{ ...styles.btnGhost, marginBottom: 16 }} onClick={handlePickFile} disabled={attachBusy}>
+          {attachBusy ? 'Uploading…' : 'Add attachment'}
+        </button>
+        {attachments.length === 0 ? (
+          <div style={styles.empty}>No files attached yet.</div>
+        ) : (
+          attachments.map((a) => (
+            <div
+              key={a.id}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: 10,
+                padding: '12px 14px',
+                borderRadius: 8,
+                border: `1px solid ${colors.gray200}`,
+                marginBottom: 8,
+              }}
+            >
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>{a.fileName}</div>
+                <div style={{ fontSize: 12, color: colors.gray500, marginTop: 2 }}>
+                  {a.uploadedByName} &middot; {a.uploadedAt ? new Date(a.uploadedAt).toLocaleString() : ''}
+                  {a.fileSize ? ` · ${(a.fileSize / 1024).toFixed(1)} KB` : ''}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {a.downloadUrl && (
+                  <a href={a.downloadUrl} target="_blank" rel="noopener noreferrer" style={{ ...styles.btn, textDecoration: 'none', display: 'inline-block' }}>
+                    Download
+                  </a>
+                )}
+                {isAdmin && (
+                  <button type="button" style={{ ...styles.btnGhost, color: colors.danger, borderColor: `${colors.danger}55` }} onClick={() => handleDeleteAttachment(a.id)}>
+                    Delete
+                  </button>
+                )}
+              </div>
+            </div>
+          ))
         )}
       </div>
 
