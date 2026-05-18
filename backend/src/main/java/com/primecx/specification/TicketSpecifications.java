@@ -28,6 +28,12 @@ public final class TicketSpecifications {
         return (root, query, cb) -> cb.equal(root.get("priority"), priority);
     }
 
+    public static Specification<Ticket> unassignedClaimable() {
+        return (root, query, cb) -> cb.and(
+                cb.isNull(root.get("assignedTo")),
+                cb.equal(root.get("status"), TicketStatus.OPEN));
+    }
+
     public static Specification<Ticket> matchesSearch(String raw) {
         String q = raw == null ? "" : raw.strip();
         if (q.isEmpty()) {

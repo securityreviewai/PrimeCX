@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getTickets, startSession, endSession, getUploadUrl } from '../services/api';
+import { getTickets, getTicketPool, claimTicket, startSession, endSession, getUploadUrl } from '../services/api';
 
 const colors = {
   primary: '#4F46E5', success: '#10B981', warning: '#F59E0B',
@@ -10,9 +10,12 @@ const colors = {
 
 const statusColors = { OPEN: colors.primary, IN_PROGRESS: colors.warning, RESOLVED: colors.success, CLOSED: colors.gray500 };
 
+const POOL_ROLES = ['support_executive', 'support_admin', 'support_manager'];
+
 const styles = {
   heading: { fontSize: 24, fontWeight: 700, color: colors.gray900, marginBottom: 24 },
   grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, alignItems: 'start' },
+  leftCol: { display: 'flex', flexDirection: 'column', gap: 24 },
   card: { background: '#fff', borderRadius: 12, padding: 24, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' },
   cardTitle: { fontSize: 16, fontWeight: 700, color: colors.gray900, marginBottom: 16 },
   ticketRow: {
@@ -59,6 +62,7 @@ function formatDuration(seconds) {
 export default function SupportConsole({ user }) {
   const navigate = useNavigate();
   const [tickets, setTickets] = useState([]);
+  const [poolTickets, setPoolTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeSession, setActiveSession] = useState(null);
@@ -66,21 +70,40 @@ export default function SupportConsole({ user }) {
   const [endNotes, setEndNotes] = useState('');
   const [ending, setEnding] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(null);
+  const [claimingId, setClaimingId] = useState(null);
   const timerRef = useRef(null);
 
-  useEffect(() => {
-    const fetch = async () => {
+  const showPool = POOL_ROLES.includes(user?.role);
+  const canClaim = user?.role === 'support_executive';
+
+  const refreshLists = useCallback(async () => {
+    const assignedRes = await getTickets();
+    setTickets(assignedRes.data);
+    if (showPool) {
       try {
-        const res = await getTickets();
-        setTickets(res.data);
+        const poolRes = await getTicketPool();
+        setPoolTickets(poolRes.data.content || []);
       } catch {
-        setError('Failed to load tickets');
-      } finally {
-        setLoading(false);
+        setPoolTickets([]);
       }
-    };
-    fetch();
-  }, []);
+    }
+  }, [showPool]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        await refreshLists();
+      } catch {
+        if (!cancelled) setError('Failed to load tickets');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [refreshLists, user?.role]);
 
   useEffect(() => {
     if (activeSession) {
@@ -88,6 +111,19 @@ export default function SupportConsole({ user }) {
     }
     return () => clearInterval(timerRef.current);
   }, [activeSession]);
+
+  const handleClaim = async (ticketId) => {
+    try {
+      setClaimingId(ticketId);
+      setError(null);
+      await claimTicket(ticketId);
+      await refreshLists();
+    } catch {
+      setError('Could not claim ticket (it may have been taken or is no longer open).');
+    } finally {
+      setClaimingId(null);
+    }
+  };
 
   const handleStartSession = async (ticketId) => {
     try {
@@ -136,43 +172,94 @@ export default function SupportConsole({ user }) {
     <div>
       <h1 style={styles.heading}>Support Console</h1>
       <div style={styles.grid}>
-        <div style={styles.card}>
-          <h3 style={styles.cardTitle}>Assigned Tickets</h3>
-          {loading ? (
-            <div style={styles.empty}>Loading...</div>
-          ) : error ? (
-            <div style={{ ...styles.empty, color: colors.danger }}>{error}</div>
-          ) : tickets.length === 0 ? (
-            <div style={styles.empty}>No assigned tickets</div>
-          ) : (
-            tickets.map((t) => (
-              <div key={t.id} style={styles.ticketRow}>
-                <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => navigate(`/tickets/${t.id}`)}>
-                  <div style={{ fontWeight: 600, fontSize: 14 }}>{t.title}</div>
-                  <div style={{ fontSize: 12, color: colors.gray500, marginTop: 2 }}>
-                    #{t.id}
+        <div style={styles.leftCol}>
+          {showPool && (
+            <div style={styles.card}>
+              <h3 style={styles.cardTitle}>Unassigned queue</h3>
+              <p style={{ fontSize: 13, color: colors.gray500, marginTop: -8, marginBottom: 16 }}>
+                Open tickets with no assignee (oldest first). Executives can claim to work them.
+              </p>
+              {loading ? (
+                <div style={styles.empty}>Loading...</div>
+              ) : poolTickets.length === 0 ? (
+                <div style={styles.empty}>No tickets in the queue</div>
+              ) : (
+                poolTickets.map((t) => (
+                  <div key={t.id} style={styles.ticketRow}>
+                    <div
+                      style={{ flex: 1, cursor: canClaim ? 'default' : 'pointer' }}
+                      onClick={() => {
+                        if (!canClaim) navigate(`/tickets/${t.id}`);
+                      }}
+                    >
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>{t.title}</div>
+                      <div style={{ fontSize: 12, color: colors.gray500, marginTop: 2 }}>
+                        #{t.id} &middot; {t.userName || 'Customer'}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <span style={{
+                        ...styles.badge,
+                        background: `${statusColors[t.status] || colors.gray500}18`,
+                        color: statusColors[t.status] || colors.gray500,
+                      }}>
+                        {t.status?.replace('_', ' ')}
+                      </span>
+                      {canClaim && (
+                        <button
+                          type="button"
+                          style={{ ...styles.btn, background: colors.primary }}
+                          disabled={claimingId === t.id}
+                          onClick={() => handleClaim(t.id)}
+                        >
+                          {claimingId === t.id ? 'Claiming…' : 'Claim'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          <div style={styles.card}>
+            <h3 style={styles.cardTitle}>Assigned to me</h3>
+            {loading ? (
+              <div style={styles.empty}>Loading...</div>
+            ) : error ? (
+              <div style={{ ...styles.empty, color: colors.danger }}>{error}</div>
+            ) : tickets.length === 0 ? (
+              <div style={styles.empty}>No assigned tickets yet — grab one from the queue</div>
+            ) : (
+              tickets.map((t) => (
+                <div key={t.id} style={styles.ticketRow}>
+                  <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => navigate(`/tickets/${t.id}`)}>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>{t.title}</div>
+                    <div style={{ fontSize: 12, color: colors.gray500, marginTop: 2 }}>
+                      #{t.id}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <span style={{
+                      ...styles.badge,
+                      background: `${statusColors[t.status] || colors.gray500}18`,
+                      color: statusColors[t.status] || colors.gray500,
+                    }}>
+                      {t.status?.replace('_', ' ')}
+                    </span>
+                    {!activeSession && (
+                      <button
+                        style={{ ...styles.btn, background: colors.success }}
+                        onClick={() => handleStartSession(t.id)}
+                      >
+                        Start Session
+                      </button>
+                    )}
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <span style={{
-                    ...styles.badge,
-                    background: `${statusColors[t.status] || colors.gray500}18`,
-                    color: statusColors[t.status] || colors.gray500,
-                  }}>
-                    {t.status?.replace('_', ' ')}
-                  </span>
-                  {!activeSession && (
-                    <button
-                      style={{ ...styles.btn, background: colors.success }}
-                      onClick={() => handleStartSession(t.id)}
-                    >
-                      Start Session
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))
-          )}
+              ))
+            )}
+          </div>
         </div>
 
         <div>

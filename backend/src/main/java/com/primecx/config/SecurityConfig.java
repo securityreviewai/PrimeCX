@@ -25,7 +25,7 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/public/**", "/actuator/health", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
-                        .requestMatchers("/api/admin/**").hasRole("SUPPORT_ADMIN")
+                        .requestMatchers("/api/admin/**").hasAnyRole("SUPPORT_ADMIN", "SUPPORT_MANAGER")
                         .requestMatchers("/api/manager/**").hasRole("SUPPORT_MANAGER")
                         .requestMatchers("/api/ai/**").authenticated()
                         .requestMatchers("/api/**").authenticated()

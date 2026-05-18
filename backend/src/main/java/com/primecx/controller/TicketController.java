@@ -96,6 +96,13 @@ public class TicketController {
         return ResponseEntity.ok(ticketService.getTicketStats(currentUser));
     }
 
+    @GetMapping("/pool")
+    @PreAuthorize("hasAnyRole('SUPPORT_EXECUTIVE', 'SUPPORT_ADMIN', 'SUPPORT_MANAGER')")
+    public ResponseEntity<PagedTicketsResponse> claimableTicketPool(
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.ASC) Pageable pageable) {
+        return ResponseEntity.ok(ticketService.listClaimablePool(pageable));
+    }
+
     @GetMapping(value = "/export", produces = "text/csv")
     public void exportTicketsCsv(
             @AuthenticationPrincipal OidcUser oidcUser,

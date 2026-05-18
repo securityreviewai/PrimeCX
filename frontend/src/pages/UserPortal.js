@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getTickets, createTicket } from '../services/api';
+import { getTickets, createTicket, getTicketStats, exportTicketsCsv } from '../services/api';
 
 const colors = {
   primary: '#4F46E5',
@@ -99,13 +99,20 @@ export default function UserPortal({ user }) {
   const [filterPriority, setFilterPriority] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
   const [createSuccess, setCreateSuccess] = useState(false);
+  const [serverStats, setServerStats] = useState(null);
+  const [exporting, setExporting] = useState(false);
 
   const fetchTickets = async () => {
     try {
       setLoading(true);
       setError(null);
-      const res = await getTickets();
-      setTickets(res.data);
+      const [listRes, statsRes] = await Promise.all([
+        getTickets(),
+        getTicketStats().catch(() => null),
+      ]);
+      setTickets(listRes.data);
+      if (statsRes?.data) setServerStats(statsRes.data);
+      else setServerStats(null);
     } catch (err) {
       setError('Failed to load tickets');
     } finally {
@@ -122,6 +129,19 @@ export default function UserPortal({ user }) {
   }, [createSuccess]);
 
   const stats = useMemo(() => {
+    if (serverStats && typeof serverStats.total === 'number') {
+      const by = serverStats.byStatus || {};
+      return {
+        total: serverStats.total,
+        active: serverStats.activeCount ?? 0,
+        resolved: by.RESOLVED ?? 0,
+        closed: by.CLOSED ?? 0,
+        criticalOpen: tickets.filter(
+          (t) =>
+            (t.status === 'OPEN' || t.status === 'IN_PROGRESS') && t.priority === 'CRITICAL'
+        ).length,
+      };
+    }
     const list = tickets;
     const active = list.filter((t) => t.status === 'OPEN' || t.status === 'IN_PROGRESS').length;
     const resolved = list.filter((t) => t.status === 'RESOLVED').length;
@@ -130,7 +150,7 @@ export default function UserPortal({ user }) {
       (t) => (t.status === 'OPEN' || t.status === 'IN_PROGRESS') && t.priority === 'CRITICAL'
     ).length;
     return { total: list.length, active, resolved, closed, criticalOpen };
-  }, [tickets]);
+  }, [serverStats, tickets]);
 
   const filteredTickets = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -153,6 +173,31 @@ export default function UserPortal({ user }) {
   }, [tickets, searchQuery, filterStatus, filterPriority, sortBy]);
 
   const displayName = [user?.firstName, user?.lastName].filter(Boolean).join(' ') || user?.email || 'there';
+
+  const handleExportCsv = async () => {
+    try {
+      setExporting(true);
+      const res = await exportTicketsCsv();
+      const blob = res.data instanceof Blob ? res.data : new Blob([res.data], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'primecx-tickets.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      if (String(res.headers['x-export-truncated']).toLowerCase() === 'true') {
+        window.alert(
+          'Export completed. Rows were capped at 5,000; use filters on the backend or contact an admin if you need the full dataset.'
+        );
+      }
+    } catch {
+      window.alert('Could not export tickets. Ensure you still have access and try again.');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -254,6 +299,24 @@ export default function UserPortal({ user }) {
                   <option value="newest">Newest first</option>
                   <option value="oldest">Oldest first</option>
                 </select>
+                <button
+                  type="button"
+                  onClick={handleExportCsv}
+                  disabled={exporting}
+                  aria-label="Download tickets as CSV"
+                  style={{
+                    padding: '10px 18px',
+                    borderRadius: 8,
+                    border: `1px solid ${colors.gray200}`,
+                    background: '#fff',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: exporting ? 'not-allowed' : 'pointer',
+                    color: colors.primary,
+                  }}
+                >
+                  {exporting ? 'Exporting…' : 'Export CSV'}
+                </button>
               </div>
             </>
           )}

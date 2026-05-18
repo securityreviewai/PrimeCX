@@ -272,6 +272,19 @@ public class TicketService {
         return new TicketStatsResponse(byStatus, total, activeCount, resolvedCount);
     }
 
+    @Transactional(readOnly = true)
+    public PagedTicketsResponse listClaimablePool(Pageable pageable) {
+        Specification<Ticket> spec = Specification.where(TicketSpecifications.unassignedClaimable());
+        Page<Ticket> page = ticketRepository.findAll(spec, pageable);
+        List<TicketDto> content = page.getContent().stream().map(this::toDto).toList();
+        return new PagedTicketsResponse(
+                content,
+                page.getTotalElements(),
+                page.getTotalPages(),
+                page.getNumber(),
+                page.getSize());
+    }
+
     public TicketDto toDto(Ticket ticket) {
         String userName = ticket.getUser().getFirstName() + " " + ticket.getUser().getLastName();
         String assignedToName = ticket.getAssignedTo() != null

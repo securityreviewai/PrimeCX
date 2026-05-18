@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getTickets, updateTicket, getSessions, getRecordingsBySession } from '../services/api';
+import { getTicket, updateTicket, getSessions, getRecordingsBySession, getTicketMessages, postTicketMessage } from '../services/api';
 
 const colors = {
   primary: '#4F46E5', success: '#10B981', warning: '#F59E0B',
@@ -38,6 +38,15 @@ const styles = {
     marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center',
   },
   empty: { color: colors.gray500, fontSize: 14, textAlign: 'center', padding: 32 },
+  msgBox: {
+    padding: '12px 14px', borderRadius: 10, background: colors.gray100,
+    marginBottom: 10, border: `1px solid ${colors.gray200}`,
+  },
+  textarea: {
+    width: '100%', padding: '10px 14px', borderRadius: 8, border: `1px solid ${colors.gray200}`,
+    fontSize: 14, outline: 'none', minHeight: 88, resize: 'vertical', fontFamily: 'inherit',
+    marginBottom: 10,
+  },
 };
 
 export default function TicketDetail({ user }) {
@@ -46,22 +55,33 @@ export default function TicketDetail({ user }) {
   const [ticket, setTicket] = useState(null);
   const [sessions, setSessions] = useState([]);
   const [recordings, setRecordings] = useState({});
+  const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [statusUpdate, setStatusUpdate] = useState('');
   const [updating, setUpdating] = useState(false);
+  const [msgBody, setMsgBody] = useState('');
+  const [postingMsg, setPostingMsg] = useState(false);
 
-  const canChangeStatus = user?.role === 'support_executive' || user?.role === 'support_admin';
+  const canChangeStatus =
+    user?.role === 'support_executive'
+    || user?.role === 'support_admin'
+    || user?.role === 'support_manager';
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const [ticketRes, sessionsRes] = await Promise.all([getTickets(), getSessions()]);
-        const found = ticketRes.data.find((t) => String(t.id) === String(id));
-        if (!found) { setError('Ticket not found'); return; }
-        setTicket(found);
-        setStatusUpdate(found.status);
+        setError(null);
+        const [ticketRes, sessionsRes, msgRes] = await Promise.all([
+          getTicket(id),
+          getSessions(),
+          getTicketMessages(id).catch(() => ({ data: [] })),
+        ]);
+        const t = ticketRes.data;
+        setTicket(t);
+        setStatusUpdate(t.status);
+        setMessages(Array.isArray(msgRes.data) ? msgRes.data : []);
 
         const ticketSessions = sessionsRes.data.filter((s) => String(s.ticketId) === String(id));
         setSessions(ticketSessions);
@@ -76,8 +96,12 @@ export default function TicketDetail({ user }) {
           }
         }
         setRecordings(recs);
-      } catch {
-        setError('Failed to load ticket details');
+      } catch (e) {
+        const msg =
+          e.response?.data?.message ||
+          (e.response?.status === 403 ? 'Access denied.' : null) ||
+          'Failed to load ticket details';
+        setError(msg);
       } finally {
         setLoading(false);
       }
@@ -85,10 +109,20 @@ export default function TicketDetail({ user }) {
     fetchData();
   }, [id]);
 
+  const reloadMessages = async () => {
+    try {
+      const res = await getTicketMessages(id);
+      setMessages(res.data || []);
+    } catch {
+      /* silent */
+    }
+  };
+
   const handleStatusUpdate = async () => {
     if (!statusUpdate || statusUpdate === ticket.status) return;
     try {
       setUpdating(true);
+      setError(null);
       await updateTicket(id, { status: statusUpdate });
       setTicket({ ...ticket, status: statusUpdate });
     } catch {
@@ -98,13 +132,47 @@ export default function TicketDetail({ user }) {
     }
   };
 
+  const handlePostMessage = async (e) => {
+    e.preventDefault();
+    if (!msgBody.trim()) return;
+    try {
+      setPostingMsg(true);
+      setError(null);
+      await postTicketMessage(id, msgBody.trim());
+      setMsgBody('');
+      await reloadMessages();
+    } catch (e2) {
+      const msg = e2.response?.data?.message || 'Failed to post message';
+      setError(msg);
+    } finally {
+      setPostingMsg(false);
+    }
+  };
+
   if (loading) return <div style={styles.empty}>Loading ticket...</div>;
-  if (error) return <div style={{ ...styles.empty, color: colors.danger }}>{error}</div>;
+  if (error && !ticket) return <div style={{ ...styles.empty, color: colors.danger }}>{error}</div>;
   if (!ticket) return null;
 
   return (
     <div>
-      <button style={styles.backBtn} onClick={() => navigate(-1)}>&larr; Back</button>
+      <button style={styles.backBtn} type="button" onClick={() => navigate(-1)}>&larr; Back</button>
+
+      {error && (
+        <div
+          role="alert"
+          style={{
+            background: `${colors.danger}12`,
+            color: '#B91C1C',
+            padding: '10px 14px',
+            borderRadius: 8,
+            marginBottom: 16,
+            fontSize: 14,
+            border: `1px solid ${colors.danger}35`,
+          }}
+        >
+          {error}
+        </div>
+      )}
 
       <div style={styles.card}>
         <h1 style={styles.title}>{ticket.title}</h1>
@@ -143,11 +211,44 @@ export default function TicketDetail({ user }) {
               <option value="RESOLVED">Resolved</option>
               <option value="CLOSED">Closed</option>
             </select>
-            <button style={styles.btn} onClick={handleStatusUpdate} disabled={updating}>
+            <button style={styles.btn} type="button" onClick={handleStatusUpdate} disabled={updating}>
               {updating ? 'Saving...' : 'Save'}
             </button>
           </div>
         )}
+      </div>
+
+      <div style={styles.card}>
+        <h3 style={styles.sectionTitle}>Conversation</h3>
+        {messages.length === 0 ? (
+          <div style={styles.empty}>No replies yet.</div>
+        ) : (
+          messages.map((m) => (
+            <div key={m.id} style={styles.msgBox}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: colors.gray700, marginBottom: 6 }}>
+                {m.authorName}
+                <span style={{ fontWeight: 400, color: colors.gray500, marginLeft: 8 }}>
+                  {m.createdAt ? new Date(m.createdAt).toLocaleString() : ''}
+                </span>
+              </div>
+              <div style={{ fontSize: 14, color: colors.gray900, whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
+                {m.body}
+              </div>
+            </div>
+          ))
+        )}
+        <form onSubmit={handlePostMessage} style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${colors.gray100}` }}>
+          <textarea
+            style={styles.textarea}
+            placeholder="Write an update visible to everyone on this ticket..."
+            value={msgBody}
+            maxLength={4096}
+            onChange={(e) => setMsgBody(e.target.value)}
+          />
+          <button style={styles.btn} type="submit" disabled={postingMsg || !msgBody.trim()}>
+            {postingMsg ? 'Sending…' : 'Post reply'}
+          </button>
+        </form>
       </div>
 
       <div style={styles.card}>

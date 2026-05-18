@@ -35,10 +35,35 @@ api.interceptors.response.use(
   }
 );
 
-export const getMe = () => api.get('/users/me');
+export const getMe = () => api.get('/auth/me');
+
 export const getTickets = () => api.get('/tickets');
+
+export const getTicketStats = () => api.get('/tickets/stats');
+
+/** @param {Record<string,string|number|undefined>} params — q, status, priority, page, size, sort */
+export const searchTickets = (params) => api.get('/tickets/search', { params });
+
+export const getTicketPool = (params = {}) =>
+  api.get('/tickets/pool', {
+    params: { page: 0, size: 20, sort: 'createdAt,asc', ...params },
+  });
+
+export const getTicket = (id) => api.get(`/tickets/${id}`);
+
+export const getTicketMessages = (ticketId) => api.get(`/tickets/${ticketId}/messages`);
+
+export const postTicketMessage = (ticketId, body) =>
+  api.post(`/tickets/${ticketId}/messages`, { body });
+
+export const claimTicket = (id) => api.post(`/tickets/${id}/claim`);
+
+export const exportTicketsCsv = () =>
+  api.get('/tickets/export', { responseType: 'blob', headers: { Accept: 'text/csv' } });
+
 export const createTicket = (data) => api.post('/tickets', data);
 export const updateTicket = (id, data) => api.put(`/tickets/${id}`, data);
+
 export const getSessions = () => api.get('/sessions');
 export const startSession = (data) => api.post('/sessions', data);
 export const endSession = (id, notes) => api.post(`/sessions/${id}/end`, { notes });
@@ -47,7 +72,7 @@ export const getUploadUrl = (sessionId, fileName, contentType) =>
 export const confirmUpload = (data) => api.post('/recordings/confirm', data);
 export const getRecording = (id) => api.get(`/recordings/${id}`);
 export const getRecordingsBySession = (sessionId) => api.get(`/recordings/session/${sessionId}`);
-export const getDashboard = () => api.get('/dashboard');
+export const getDashboard = () => api.get('/admin/dashboard');
 export const getUsers = () => api.get('/users');
 export const updateUserRole = (id, role) => api.put(`/users/${id}/role`, { role });
 
