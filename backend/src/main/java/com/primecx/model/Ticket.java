@@ -54,6 +54,9 @@ public class Ticket {
 
     private LocalDateTime satisfactionSubmittedAt;
 
+    /** Target first-response time derived from priority when the ticket was opened or reprioritized. */
+    private LocalDateTime slaRespondBy;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

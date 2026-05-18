@@ -51,6 +51,18 @@ export const getTicketPool = (params = {}) =>
 
 export const getTicket = (id) => api.get(`/tickets/${id}`);
 
+/** @param {Record<string,string|number|undefined>} params — page, size, sort */
+export const getTicketActivity = (ticketId, params = {}) =>
+  api.get(`/tickets/${ticketId}/activity`, {
+    params: { page: 0, size: 40, sort: 'createdAt,asc', ...params },
+  });
+
+/** Visible SLA-overdue tickets (OPEN / IN_PROGRESS, past first-response deadline). */
+export const getSlaBreachedTickets = (params = {}) =>
+  api.get('/tickets/sla/breached', {
+    params: { page: 0, size: 20, sort: 'slaRespondBy,asc', ...params },
+  });
+
 export const getTicketMessages = (ticketId) => api.get(`/tickets/${ticketId}/messages`);
 
 export const postTicketMessage = (ticketId, body) =>

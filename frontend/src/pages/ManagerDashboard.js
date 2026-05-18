@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { getDashboard, getSessions, getRecordingsBySession } from '../services/api';
+import { Link } from 'react-router-dom';
+import { getDashboard, getSessions, getRecordingsBySession, getSlaBreachedTickets } from '../services/api';
 
 const colors = {
   primary: '#4F46E5', success: '#10B981', warning: '#F59E0B',
@@ -48,14 +49,20 @@ export default function ManagerDashboard({ user }) {
   const [executiveFilter, setExecutiveFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [slaBreached, setSlaBreached] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const [dashRes, sessionsRes] = await Promise.all([getDashboard(), getSessions()]);
+        const [dashRes, sessionsRes, slaRes] = await Promise.all([
+          getDashboard(),
+          getSessions(),
+          getSlaBreachedTickets().catch(() => ({ data: { content: [], totalElements: 0 } })),
+        ]);
         setStats(dashRes.data);
         setSessions(sessionsRes.data);
+        setSlaBreached(slaRes.data);
 
         const recs = [];
         for (const s of sessionsRes.data.slice(0, 20)) {
@@ -103,6 +110,64 @@ export default function ManagerDashboard({ user }) {
           <div style={{ ...styles.statValue, color: colors.danger }}>{stats?.totalRecordings ?? 0}</div>
           <div style={styles.statLabel}>Total Recordings</div>
         </div>
+      </div>
+
+      <div style={styles.card}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <h3 style={{ ...styles.cardTitle, margin: 0 }}>SLA overdue (first response)</h3>
+            <p style={{ fontSize: 13, color: colors.gray500, margin: '8px 0 0', maxWidth: 640, lineHeight: 1.5 }}>
+              Open or in-progress tickets past the priority-based first-response deadline. Same visibility rules as search — executives only see tickets assigned to them.
+            </p>
+          </div>
+          <div
+            style={{
+              ...styles.statCard,
+              padding: '12px 18px',
+              minWidth: 100,
+              textAlign: 'center',
+              boxShadow: 'none',
+              border: `1px solid ${colors.gray200}`,
+            }}
+          >
+            <div style={{ ...styles.statValue, fontSize: 24, color: colors.danger, marginBottom: 0 }}>
+              {slaBreached?.totalElements ?? 0}
+            </div>
+            <div style={styles.statLabel}>Breached</div>
+          </div>
+        </div>
+        {!slaBreached?.content?.length ? (
+          <div style={styles.empty}>No SLA breaches in your view.</div>
+        ) : (
+          <table style={styles.table}>
+            <thead>
+              <tr>
+                <th style={styles.th}>ID</th>
+                <th style={styles.th}>Title</th>
+                <th style={styles.th}>Priority</th>
+                <th style={styles.th}>Status</th>
+                <th style={styles.th}>Respond by</th>
+              </tr>
+            </thead>
+            <tbody>
+              {slaBreached.content.map((t) => (
+                <tr key={t.id}>
+                  <td style={styles.td}>
+                    <Link to={`/tickets/${t.id}`} style={{ color: colors.primary, fontWeight: 600, textDecoration: 'none' }}>
+                      #{t.id}
+                    </Link>
+                  </td>
+                  <td style={styles.td}>{t.title}</td>
+                  <td style={styles.td}>{t.priority}</td>
+                  <td style={styles.td}>{t.status?.replace('_', ' ')}</td>
+                  <td style={styles.td}>
+                    {t.slaRespondBy ? new Date(t.slaRespondBy).toLocaleString() : '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
       <div style={styles.card}>

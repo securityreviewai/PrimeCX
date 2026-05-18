@@ -1,5 +1,7 @@
 package com.primecx.specification;
 
+import java.time.LocalDateTime;
+
 import org.springframework.data.jpa.domain.Specification;
 
 import com.primecx.model.Ticket;
@@ -32,6 +34,17 @@ public final class TicketSpecifications {
         return (root, query, cb) -> cb.and(
                 cb.isNull(root.get("assignedTo")),
                 cb.equal(root.get("status"), TicketStatus.OPEN));
+    }
+
+    /** Active tickets whose first-response SLA deadline has passed (calendar-time clock). */
+    public static Specification<Ticket> slaOverdueActive() {
+        LocalDateTime now = LocalDateTime.now();
+        return (root, query, cb) -> cb.and(
+                cb.or(
+                        cb.equal(root.get("status"), TicketStatus.OPEN),
+                        cb.equal(root.get("status"), TicketStatus.IN_PROGRESS)),
+                cb.isNotNull(root.get("slaRespondBy")),
+                cb.lessThan(root.get("slaRespondBy"), now));
     }
 
     public static Specification<Ticket> matchesSearch(String raw) {

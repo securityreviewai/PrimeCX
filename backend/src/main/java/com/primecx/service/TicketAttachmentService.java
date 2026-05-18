@@ -13,6 +13,7 @@ import com.primecx.exception.ForbiddenException;
 import com.primecx.exception.ResourceNotFoundException;
 import com.primecx.model.Role;
 import com.primecx.model.Ticket;
+import com.primecx.model.TicketActivityType;
 import com.primecx.model.TicketAttachment;
 import com.primecx.model.User;
 import com.primecx.repository.TicketAttachmentRepository;
@@ -39,6 +40,7 @@ public class TicketAttachmentService {
 
     private final TicketAttachmentRepository attachmentRepository;
     private final TicketService ticketService;
+    private final TicketActivityService ticketActivityService;
     private final UserRepository userRepository;
     private final S3StorageService s3StorageService;
 
@@ -76,6 +78,8 @@ public class TicketAttachmentService {
         attachment.setContentType(normalizeContentType(req.contentType()));
 
         TicketAttachment saved = attachmentRepository.save(attachment);
+        ticketActivityService.record(ticketId, author, TicketActivityType.ATTACHMENT_ADDED,
+                "Added attachment: " + req.fileName());
         log.info("Confirmed attachment {} on ticket {}", saved.getId(), ticketId);
         return toDto(saved, true);
     }
@@ -147,6 +151,8 @@ public class TicketAttachmentService {
             throw new IllegalArgumentException("Attachment does not belong to this ticket.");
         }
         ticketService.getTicketVisibleTo(ticketId, actor);
+        ticketActivityService.record(ticketId, actor, TicketActivityType.ATTACHMENT_REMOVED,
+                "Removed attachment: " + a.getFileName());
         s3StorageService.deleteObject(a.getS3Key());
         attachmentRepository.delete(a);
         log.info("Deleted ticket attachment {} on ticket {}", attachmentId, ticketId);

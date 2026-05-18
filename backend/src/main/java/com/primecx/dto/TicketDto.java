@@ -19,5 +19,7 @@ public record TicketDto(
         LocalDateTime updatedAt,
         Integer customerRating,
         String customerFeedback,
-        LocalDateTime satisfactionSubmittedAt
+        LocalDateTime satisfactionSubmittedAt,
+        LocalDateTime slaRespondBy,
+        boolean slaBreached
 ) {}

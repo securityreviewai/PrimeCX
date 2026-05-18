@@ -119,6 +119,14 @@ public class TicketController {
         response.getWriter().flush();
     }
 
+    @GetMapping("/sla/breached")
+    public ResponseEntity<PagedTicketsResponse> listSlaBreachedTickets(
+            @AuthenticationPrincipal OidcUser oidcUser,
+            @PageableDefault(size = 20, sort = "slaRespondBy", direction = Sort.Direction.ASC) Pageable pageable) {
+        User currentUser = userService.getUserByOktaId(oidcUser.getSubject());
+        return ResponseEntity.ok(ticketService.listSlaBreachedTickets(currentUser, pageable));
+    }
+
     @PostMapping("/{id:\\d+}/claim")
     @PreAuthorize("hasRole('SUPPORT_EXECUTIVE')")
     public ResponseEntity<TicketDto> claimTicket(

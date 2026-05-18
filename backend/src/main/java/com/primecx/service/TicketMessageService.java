@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.primecx.dto.CreateTicketMessageRequest;
 import com.primecx.dto.TicketMessageDto;
 import com.primecx.model.Ticket;
+import com.primecx.model.TicketActivityType;
 import com.primecx.model.TicketMessage;
 import com.primecx.model.User;
 import com.primecx.repository.TicketMessageRepository;
@@ -20,6 +21,7 @@ public class TicketMessageService {
 
     private final TicketMessageRepository ticketMessageRepository;
     private final TicketService ticketService;
+    private final TicketActivityService ticketActivityService;
 
     @Transactional(readOnly = true)
     public List<TicketMessageDto> listMessages(Long ticketId, User viewer) {
@@ -36,7 +38,22 @@ public class TicketMessageService {
         message.setTicket(ticket);
         message.setAuthor(author);
         message.setBody(request.body().strip());
-        return toDto(ticketMessageRepository.save(message));
+        TicketMessage saved = ticketMessageRepository.save(message);
+        ticketActivityService.record(ticketId, author, TicketActivityType.MESSAGE_POSTED,
+                messagePreview(saved.getBody()));
+        return toDto(saved);
+    }
+
+    private static String messagePreview(String body) {
+        if (body == null || body.isEmpty()) {
+            return "Message posted";
+        }
+        String oneLine = body.replace('\n', ' ').strip();
+        int max = 160;
+        if (oneLine.length() <= max) {
+            return oneLine;
+        }
+        return oneLine.substring(0, max - 1) + "…";
     }
 
     private TicketMessageDto toDto(TicketMessage m) {

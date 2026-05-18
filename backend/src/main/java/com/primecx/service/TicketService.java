@@ -4,8 +4,10 @@ import java.io.IOException;
 import java.io.Writer;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
+import java.util.Objects;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -25,6 +27,7 @@ import com.primecx.exception.ForbiddenException;
 import com.primecx.exception.ResourceNotFoundException;
 import com.primecx.model.Role;
 import com.primecx.model.Ticket;
+import com.primecx.model.TicketActivityType;
 import com.primecx.model.TicketPriority;
 import com.primecx.model.TicketStatus;
 import com.primecx.model.User;
@@ -45,6 +48,7 @@ public class TicketService {
 
     private final TicketRepository ticketRepository;
     private final UserRepository userRepository;
+    private final TicketActivityService ticketActivityService;
 
     @Transactional
     public Ticket claimTicket(Long ticketId, User executive) {
@@ -67,6 +71,7 @@ public class TicketService {
         }
         ticket.setUpdatedAt(LocalDateTime.now());
         Ticket saved = ticketRepository.save(ticket);
+        ticketActivityService.record(saved.getId(), executive, TicketActivityType.CLAIMED, "Ticket claimed from queue");
         log.info("Ticket {} claimed by executive {}", ticketId, executive.getId());
         return saved;
     }
@@ -78,7 +83,7 @@ public class TicketService {
         Page<Ticket> page = ticketRepository.findAll(spec, pageable);
 
         writer.write('\ufeff');
-        writer.write("id,title,description,status,priority,user_id,user_name,assignee_id,assignee_name,created_at,updated_at,customer_rating,customer_feedback,satisfaction_submitted_at\n");
+        writer.write("id,title,description,status,priority,user_id,user_name,assignee_id,assignee_name,created_at,updated_at,customer_rating,customer_feedback,satisfaction_submitted_at,sla_respond_by,sla_breached\n");
         for (Ticket ticket : page.getContent()) {
             TicketDto row = toDto(ticket);
             writer.write(Long.toString(row.id()));
@@ -108,6 +113,10 @@ public class TicketService {
             writer.write(row.customerFeedback() != null ? csvField(row.customerFeedback()) : "");
             writer.write(',');
             writer.write(row.satisfactionSubmittedAt() != null ? CSV_INSTANT.format(row.satisfactionSubmittedAt()) : "");
+            writer.write(',');
+            writer.write(row.slaRespondBy() != null ? CSV_INSTANT.format(row.slaRespondBy()) : "");
+            writer.write(',');
+            writer.write(row.slaBreached() ? "Y" : "N");
             writer.write('\n');
         }
         return page.getTotalElements() > EXPORT_ROW_CAP;
@@ -121,22 +130,45 @@ public class TicketService {
         return "\"" + normalized.replace("\"", "\"\"") + "\"";
     }
 
+    private LocalDateTime computeSlaRespondBy(TicketPriority priority, LocalDateTime from) {
+        return switch (priority) {
+            case CRITICAL -> from.plusHours(4);
+            case HIGH -> from.plusHours(24);
+            case MEDIUM -> from.plusHours(72);
+            case LOW -> from.plusDays(5);
+        };
+    }
+
+    private boolean computeSlaBreached(Ticket ticket) {
+        if (ticket.getSlaRespondBy() == null) {
+            return false;
+        }
+        if (ticket.getStatus() != TicketStatus.OPEN && ticket.getStatus() != TicketStatus.IN_PROGRESS) {
+            return false;
+        }
+        return LocalDateTime.now().isAfter(ticket.getSlaRespondBy());
+    }
+
     @Transactional
     public Ticket createTicket(CreateTicketRequest request, Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", userId));
 
+        LocalDateTime now = LocalDateTime.now();
         Ticket ticket = new Ticket();
         ticket.setTitle(request.title());
         ticket.setDescription(request.description());
         ticket.setPriority(request.priority());
         ticket.setStatus(TicketStatus.OPEN);
         ticket.setUser(user);
-        ticket.setCreatedAt(LocalDateTime.now());
-        ticket.setUpdatedAt(LocalDateTime.now());
+        ticket.setCreatedAt(now);
+        ticket.setUpdatedAt(now);
+        ticket.setSlaRespondBy(computeSlaRespondBy(request.priority(), now));
 
         log.info("Creating ticket '{}' for user {}", request.title(), userId);
-        return ticketRepository.save(ticket);
+        Ticket saved = ticketRepository.save(ticket);
+        ticketActivityService.record(saved.getId(), user, TicketActivityType.TICKET_CREATED, "Ticket opened");
+        return saved;
     }
 
     @Transactional
@@ -144,42 +176,68 @@ public class TicketService {
         Ticket ticket = getTicketById(ticketId);
         assertCanUpdateTicket(updater, ticket);
 
+        TicketStatus prevStatus = ticket.getStatus();
+        TicketPriority prevPriority = ticket.getPriority();
+        String prevTitle = ticket.getTitle();
+        String prevDesc = ticket.getDescription();
+        Long prevAssigneeId = ticket.getAssignedTo() != null ? ticket.getAssignedTo().getId() : null;
+
         boolean fullAccess = updater.getRole() == Role.ROLE_SUPPORT_ADMIN
                 || updater.getRole() == Role.ROLE_SUPPORT_MANAGER
                 || updater.getRole() == Role.ROLE_SUPPORT_EXECUTIVE;
 
+        List<String> notes = new ArrayList<>();
+
         if (fullAccess) {
-            if (request.title() != null) {
+            if (request.title() != null && !Objects.equals(request.title(), prevTitle)) {
                 ticket.setTitle(request.title());
+                notes.add("Title updated");
             }
-            if (request.description() != null) {
+            if (request.description() != null && !Objects.equals(request.description(), prevDesc)) {
                 ticket.setDescription(request.description());
+                notes.add("Description updated");
             }
-            if (request.status() != null) {
+            if (request.status() != null && request.status() != prevStatus) {
                 ticket.setStatus(request.status());
+                notes.add("Status: " + prevStatus + " → " + request.status());
             }
-            if (request.priority() != null) {
+            if (request.priority() != null && request.priority() != prevPriority) {
                 ticket.setPriority(request.priority());
+                ticket.setSlaRespondBy(computeSlaRespondBy(request.priority(), LocalDateTime.now()));
+                notes.add("Priority: " + prevPriority + " → " + request.priority());
             }
             if (request.assignedToId() != null) {
-                User assignee = userRepository.findById(request.assignedToId())
-                        .orElseThrow(() -> new ResourceNotFoundException("User", request.assignedToId()));
-                ticket.setAssignedTo(assignee);
+                Long aid = request.assignedToId();
+                if (!Objects.equals(prevAssigneeId, aid)) {
+                    User assignee = userRepository.findById(aid)
+                            .orElseThrow(() -> new ResourceNotFoundException("User", aid));
+                    ticket.setAssignedTo(assignee);
+                    notes.add("Assignee → user #" + aid);
+                }
             }
         } else {
-            if (request.title() != null) {
+            if (request.title() != null && !Objects.equals(request.title(), prevTitle)) {
                 ticket.setTitle(request.title());
+                notes.add("Title updated");
             }
-            if (request.description() != null) {
+            if (request.description() != null && !Objects.equals(request.description(), prevDesc)) {
                 ticket.setDescription(request.description());
+                notes.add("Description updated");
             }
-            if (request.priority() != null) {
+            if (request.priority() != null && request.priority() != prevPriority) {
                 ticket.setPriority(request.priority());
+                ticket.setSlaRespondBy(computeSlaRespondBy(request.priority(), LocalDateTime.now()));
+                notes.add("Priority: " + prevPriority + " → " + request.priority());
             }
         }
 
         ticket.setUpdatedAt(LocalDateTime.now());
-        return ticketRepository.save(ticket);
+        Ticket saved = ticketRepository.save(ticket);
+        if (!notes.isEmpty()) {
+            ticketActivityService.record(saved.getId(), updater, TicketActivityType.TICKET_UPDATED,
+                    String.join("; ", notes));
+        }
+        return saved;
     }
 
     /**
@@ -265,6 +323,20 @@ public class TicketService {
     }
 
     @Transactional(readOnly = true)
+    public PagedTicketsResponse listSlaBreachedTickets(User viewer, Pageable pageable) {
+        Specification<Ticket> spec = Specification.where(TicketSpecifications.visibleToUser(viewer))
+                .and(TicketSpecifications.slaOverdueActive());
+        Page<Ticket> page = ticketRepository.findAll(spec, pageable);
+        List<TicketDto> content = page.getContent().stream().map(this::toDto).toList();
+        return new PagedTicketsResponse(
+                content,
+                page.getTotalElements(),
+                page.getTotalPages(),
+                page.getNumber(),
+                page.getSize());
+    }
+
+    @Transactional(readOnly = true)
     public TicketStatsResponse getTicketStats(User viewer) {
         Specification<Ticket> base = Specification.where(TicketSpecifications.visibleToUser(viewer));
         long total = ticketRepository.count(base);
@@ -313,7 +385,9 @@ public class TicketService {
                 ticket.getUpdatedAt(),
                 ticket.getCustomerRating(),
                 ticket.getCustomerFeedback(),
-                ticket.getSatisfactionSubmittedAt());
+                ticket.getSatisfactionSubmittedAt(),
+                ticket.getSlaRespondBy(),
+                computeSlaBreached(ticket));
     }
 
     @Transactional
@@ -339,6 +413,8 @@ public class TicketService {
         ticket.setSatisfactionSubmittedAt(LocalDateTime.now());
         ticket.setUpdatedAt(LocalDateTime.now());
         Ticket saved = ticketRepository.save(ticket);
+        ticketActivityService.record(saved.getId(), customer, TicketActivityType.SATISFACTION_SUBMITTED,
+                "Rating " + request.rating() + "/5");
         log.info("Recorded satisfaction {} for ticket {}", request.rating(), ticketId);
         return toDto(saved);
     }

@@ -12,6 +12,7 @@ import {
   confirmTicketAttachment,
   deleteTicketAttachment,
   submitTicketSatisfaction,
+  getTicketActivity,
 } from '../services/api';
 
 const colors = {
@@ -54,6 +55,24 @@ const styles = {
     marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center',
   },
   empty: { color: colors.gray500, fontSize: 14, textAlign: 'center', padding: 32 },
+  slaBanner: {
+    borderRadius: 10,
+    padding: '12px 16px',
+    marginBottom: 16,
+    fontSize: 14,
+    fontWeight: 500,
+    border: `1px solid ${colors.danger}40`,
+    background: `${colors.danger}10`,
+    color: '#991B1B',
+  },
+  activityRow: {
+    padding: '10px 0',
+    borderBottom: `1px solid ${colors.gray100}`,
+    fontSize: 14,
+    color: colors.gray700,
+    lineHeight: 1.45,
+  },
+  activityMeta: { fontSize: 12, color: colors.gray500, marginTop: 4 },
   msgBox: {
     padding: '12px 14px', borderRadius: 10, background: colors.gray100,
     marginBottom: 10, border: `1px solid ${colors.gray200}`,
@@ -86,6 +105,19 @@ function roleKey(r) {
   return s.toLowerCase();
 }
 
+function activityLabel(eventType) {
+  const labels = {
+    TICKET_CREATED: 'Ticket opened',
+    TICKET_UPDATED: 'Ticket updated',
+    CLAIMED: 'Claimed',
+    MESSAGE_POSTED: 'Reply posted',
+    ATTACHMENT_ADDED: 'Attachment added',
+    ATTACHMENT_REMOVED: 'Attachment removed',
+    SATISFACTION_SUBMITTED: 'Satisfaction submitted',
+  };
+  return labels[eventType] || eventType?.replace(/_/g, ' ') || 'Event';
+}
+
 function Stars({ value }) {
   const filled = Math.round(Number(value) || 0);
   return (
@@ -115,6 +147,7 @@ export default function TicketDetail({ user }) {
   const [satRating, setSatRating] = useState(5);
   const [satFeedback, setSatFeedback] = useState('');
   const [satSubmitting, setSatSubmitting] = useState(false);
+  const [activity, setActivity] = useState(null);
 
   const rk = roleKey(user?.role);
 
@@ -130,17 +163,19 @@ export default function TicketDetail({ user }) {
     try {
       setLoading(true);
       setError(null);
-      const [ticketRes, sessionsRes, msgRes, attRes] = await Promise.all([
+      const [ticketRes, sessionsRes, msgRes, attRes, actRes] = await Promise.all([
         getTicket(id),
         getSessions(),
         getTicketMessages(id).catch(() => ({ data: [] })),
         getTicketAttachments(id).catch(() => ({ data: [] })),
+        getTicketActivity(id).catch(() => ({ data: { content: [], totalElements: 0 } })),
       ]);
       const t = ticketRes.data;
       setTicket(t);
       setStatusUpdate(t.status);
       setMessages(Array.isArray(msgRes.data) ? msgRes.data : []);
       setAttachments(Array.isArray(attRes.data) ? attRes.data : []);
+      setActivity(actRes.data && typeof actRes.data === 'object' ? actRes.data : { content: [], totalElements: 0 });
 
       const ticketSessions = sessionsRes.data.filter((s) => String(s.ticketId) === String(id));
       setSessions(ticketSessions);
@@ -188,6 +223,15 @@ export default function TicketDetail({ user }) {
     }
   };
 
+  const reloadActivity = async () => {
+    try {
+      const res = await getTicketActivity(id);
+      setActivity(res.data || { content: [], totalElements: 0 });
+    } catch {
+      /* silent */
+    }
+  };
+
   const refreshTicketOnly = async () => {
     try {
       const res = await getTicket(id);
@@ -205,6 +249,7 @@ export default function TicketDetail({ user }) {
       setError(null);
       await updateTicket(id, { status: statusUpdate });
       await refreshTicketOnly();
+      await reloadActivity();
     } catch {
       setError('Failed to update status');
     } finally {
@@ -221,6 +266,7 @@ export default function TicketDetail({ user }) {
       await postTicketMessage(id, msgBody.trim());
       setMsgBody('');
       await reloadMessages();
+      await reloadActivity();
     } catch (e2) {
       const msg = e2.response?.data?.message || 'Failed to post message';
       setError(msg);
@@ -260,6 +306,7 @@ export default function TicketDetail({ user }) {
         fileSize: file.size,
       });
       await reloadAttachments();
+      await reloadActivity();
     } catch {
       setError('Attachment upload failed. Check file type/size (max 25 MB) and try again.');
     } finally {
@@ -273,6 +320,7 @@ export default function TicketDetail({ user }) {
       setError(null);
       await deleteTicketAttachment(id, attachmentId);
       await reloadAttachments();
+      await reloadActivity();
     } catch {
       setError('Could not delete attachment.');
     }
@@ -289,6 +337,7 @@ export default function TicketDetail({ user }) {
       };
       await submitTicketSatisfaction(id, payload);
       await refreshTicketOnly();
+      await reloadActivity();
       setSatFeedback('');
     } catch (e3) {
       const msg = e3.response?.data?.message || 'Could not submit feedback.';
@@ -339,6 +388,14 @@ export default function TicketDetail({ user }) {
         </div>
       )}
 
+      {ticket.slaBreached && (ticket.status === 'OPEN' || ticket.status === 'IN_PROGRESS') && (
+        <div style={styles.slaBanner} role="status">
+          First-response SLA missed — deadline was{' '}
+          <strong>{ticket.slaRespondBy ? new Date(ticket.slaRespondBy).toLocaleString() : 'unknown'}</strong>.
+          {' '}Priority was set to <strong>{ticket.priority}</strong>.
+        </div>
+      )}
+
       <div style={styles.card}>
         <h1 style={styles.title}>{ticket.title}</h1>
         <div style={styles.meta}>
@@ -359,6 +416,11 @@ export default function TicketDetail({ user }) {
           <span style={{ fontSize: 13, color: colors.gray500, alignSelf: 'center' }}>
             Created {new Date(ticket.createdAt).toLocaleDateString()}
           </span>
+          {ticket.slaRespondBy && (ticket.status === 'OPEN' || ticket.status === 'IN_PROGRESS') && (
+            <span style={{ fontSize: 13, color: ticket.slaBreached ? colors.danger : colors.gray500, alignSelf: 'center', fontWeight: ticket.slaBreached ? 600 : 400 }}>
+              Respond by {new Date(ticket.slaRespondBy).toLocaleString()}
+            </span>
+          )}
         </div>
 
         <p style={styles.description}>{ticket.description || 'No description provided.'}</p>
@@ -436,6 +498,29 @@ export default function TicketDetail({ user }) {
               {updating ? 'Saving...' : 'Save'}
             </button>
           </div>
+        )}
+      </div>
+
+      <div style={styles.card}>
+        <h3 style={styles.sectionTitle}>Activity</h3>
+        <p style={{ fontSize: 13, color: colors.gray500, marginTop: -6, marginBottom: 14 }}>
+          Audit-style timeline for this ticket ({activity?.totalElements ?? activity?.content?.length ?? 0} events).
+        </p>
+        {!activity?.content?.length ? (
+          <div style={styles.empty}>No activity recorded yet.</div>
+        ) : (
+          activity.content.map((ev) => (
+            <div key={ev.id} style={styles.activityRow}>
+              <div style={{ fontWeight: 600, color: colors.gray900 }}>
+                {activityLabel(ev.eventType)}
+              </div>
+              <div>{ev.summary}</div>
+              <div style={styles.activityMeta}>
+                {ev.actorName}
+                {ev.createdAt ? ` · ${new Date(ev.createdAt).toLocaleString()}` : ''}
+              </div>
+            </div>
+          ))
         )}
       </div>
 
