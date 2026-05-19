@@ -1,11 +1,11 @@
 package com.primecx.dto;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
-public record RecordingDto(
+public record RecordingPlaybackDto(
         Long id,
         Long sessionId,
-        String s3Key,
         String fileName,
         Long fileSize,
         Integer durationSeconds,
@@ -13,6 +13,7 @@ public record RecordingDto(
         LocalDateTime uploadedAt,
         String presignedUrl,
         String transcript,
+        List<RedactionRegionDto> redactionRegions,
         LocalDateTime retentionExpiresAt,
-        boolean hasRedactions
+        List<RecordingQaReviewDto> qaReviews
 ) {}

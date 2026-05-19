@@ -44,7 +44,16 @@ aws:
 openai:
   api-key: ${OPENAI_API_KEY:your-openai-api-key}
   model: ${OPENAI_MODEL:gpt-4o}
+  whisper-model: ${OPENAI_WHISPER_MODEL:whisper-1}
   base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+
+primecx:
+  recordings:
+    retention-days: ${RECORDING_RETENTION_DAYS:365}
+    transition-to-ia-days: ${RECORDING_IA_DAYS:30}
+    transition-to-glacier-days: ${RECORDING_GLACIER_DAYS:90}
+    auto-transcription-enabled: ${AUTO_TRANSCRIPTION:true}
+    auto-analysis-on-session-end: ${AUTO_ANALYSIS_ON_SESSION_END:true}
 
 springdoc:
   api-docs:

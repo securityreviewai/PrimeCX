@@ -13,6 +13,7 @@ import ManagerDashboard from './pages/ManagerDashboard';
 import AdminPanel from './pages/AdminPanel';
 import TicketDetail from './pages/TicketDetail';
 import AIInsights from './pages/AIInsights';
+import RecordingReview from './pages/RecordingReview';
 
 const oktaAuth = new OktaAuth(oktaConfig);
 setAuthClient(oktaAuth);
@@ -96,6 +97,14 @@ function AppRoutes() {
             element={
               <ProtectedRoute oktaAuth={oktaAuth}>
                 <AdminPanel user={user} />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/recordings/:id"
+            element={
+              <ProtectedRoute oktaAuth={oktaAuth}>
+                <RecordingReview user={user} />
               </ProtectedRoute>
             }
           />

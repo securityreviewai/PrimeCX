@@ -40,6 +40,10 @@ resource "aws_s3_bucket_lifecycle_configuration" "recordings" {
     id     = "recording-lifecycle"
     status = "Enabled"
 
+    filter {
+      prefix = "recordings/"
+    }
+
     transition {
       days          = 30
       storage_class = "STANDARD_IA"
@@ -49,6 +53,14 @@ resource "aws_s3_bucket_lifecycle_configuration" "recordings" {
       days          = 90
       storage_class = "GLACIER"
     }
+
+    expiration {
+      days = var.recording_retention_days
+    }
+
+    noncurrent_version_expiration {
+      noncurrent_days = 30
+    }
   }
 }
 
@@ -57,7 +69,7 @@ resource "aws_s3_bucket_cors_configuration" "recordings" {
 
   cors_rule {
     allowed_headers = ["*"]
-    allowed_methods = ["PUT", "POST"]
+    allowed_methods = ["PUT", "POST", "GET", "HEAD"]
     allowed_origins = ["*"]
     expose_headers  = ["ETag"]
     max_age_seconds = 3600

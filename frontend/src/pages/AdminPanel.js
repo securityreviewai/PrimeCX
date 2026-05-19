@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { getDashboard, getUsers, updateUserRole, getTickets, getSessions, getRecordingsBySession } from '../services/api';
 
 const colors = {
@@ -265,17 +266,12 @@ export default function AdminPanel({ user }) {
               <div>
                 <div style={{ fontWeight: 600, fontSize: 14 }}>Recording #{r.id}</div>
                 <div style={{ fontSize: 12, color: colors.gray500, marginTop: 2 }}>
-                  Session #{r.sessionId} &middot; {r.s3Key || 'N/A'}
+                  Session #{r.sessionId} &middot; {r.durationSeconds ?? 0}s
                 </div>
               </div>
-              <a
-                href={r.playbackUrl || '#'}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ color: colors.primary, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}
-              >
-                &#9654; Play
-              </a>
+              <Link to={`/recordings/${r.id}`} style={{ color: colors.primary, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+                Review &amp; Play
+              </Link>
             </div>
           ))
         )}

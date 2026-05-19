@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getTickets, startSession, endSession, getUploadUrl } from '../services/api';
+import { getTickets, startSession, endSession, recordingApi } from '../services/api';
+import ScreenRecorder from '../utils/screenRecorder';
 
 const colors = {
   primary: '#4F46E5', success: '#10B981', warning: '#F59E0B',
@@ -43,10 +44,6 @@ const styles = {
     marginTop: 12, marginBottom: 12,
   },
   empty: { color: colors.gray500, fontSize: 14, textAlign: 'center', padding: 40 },
-  uploadArea: {
-    border: `2px dashed ${colors.gray200}`, borderRadius: 8, padding: 20,
-    textAlign: 'center', marginTop: 16, color: colors.gray500, fontSize: 14, cursor: 'pointer',
-  },
 };
 
 function formatDuration(seconds) {
@@ -66,7 +63,10 @@ export default function SupportConsole({ user }) {
   const [endNotes, setEndNotes] = useState('');
   const [ending, setEnding] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingError, setRecordingError] = useState(null);
   const timerRef = useRef(null);
+  const recorderRef = useRef(null);
 
   useEffect(() => {
     const fetch = async () => {
@@ -89,11 +89,38 @@ export default function SupportConsole({ user }) {
     return () => clearInterval(timerRef.current);
   }, [activeSession]);
 
-  const handleStartSession = async (ticketId) => {
+  useEffect(() => () => {
+    if (recorderRef.current?.isRecording()) {
+      recorderRef.current.stop().catch(() => {});
+    }
+  }, []);
+
+  const handleStartSession = async (ticket) => {
     try {
-      const res = await startSession({ ticketId });
+      setRecordingError(null);
+      const res = await startSession({ ticketId: ticket.id, userId: ticket.userId });
       setActiveSession(res.data);
       setElapsed(0);
+
+      const recorder = new ScreenRecorder(recordingApi);
+      recorder.onProgress = (p) => {
+        setUploadProgress(p.done ? 100 : Math.min(90, p.uploadedParts * 15));
+      };
+      recorder.onError = (err) => {
+        setRecordingError(err.message || 'Recording upload failed');
+      };
+      recorderRef.current = recorder;
+
+      try {
+        await recorder.start(res.data.id);
+        setIsRecording(true);
+      } catch (recErr) {
+        if (recErr.name === 'NotAllowedError') {
+          setRecordingError('Screen capture permission denied. Session active without recording.');
+        } else {
+          setRecordingError(recErr.message || 'Failed to start screen capture');
+        }
+      }
     } catch {
       setError('Failed to start session');
     }
@@ -103,11 +130,22 @@ export default function SupportConsole({ user }) {
     if (!activeSession) return;
     try {
       setEnding(true);
+      setUploadProgress(0);
+
+      if (recorderRef.current?.isRecording()) {
+        setUploadProgress(50);
+        await recorderRef.current.stop();
+        setUploadProgress(100);
+      }
+
       await endSession(activeSession.id, endNotes);
       setActiveSession(null);
       setElapsed(0);
       setEndNotes('');
+      setIsRecording(false);
+      recorderRef.current = null;
       clearInterval(timerRef.current);
+      setTimeout(() => setUploadProgress(null), 2000);
     } catch {
       setError('Failed to end session');
     } finally {
@@ -115,25 +153,9 @@ export default function SupportConsole({ user }) {
     }
   };
 
-  const handleUpload = async () => {
-    if (!activeSession) return;
-    try {
-      setUploadProgress(0);
-      await getUploadUrl(activeSession.id, 'recording.webm', 'video/webm');
-      const interval = setInterval(() => {
-        setUploadProgress((p) => {
-          if (p >= 100) { clearInterval(interval); return 100; }
-          return p + 10;
-        });
-      }, 300);
-    } catch {
-      setError('Failed to get upload URL');
-      setUploadProgress(null);
-    }
-  };
-
   return (
     <div>
+      <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }`}</style>
       <h1 style={styles.heading}>Support Console</h1>
       <div style={styles.grid}>
         <div style={styles.card}>
@@ -164,7 +186,7 @@ export default function SupportConsole({ user }) {
                   {!activeSession && (
                     <button
                       style={{ ...styles.btn, background: colors.success }}
-                      onClick={() => handleStartSession(t.id)}
+                      onClick={() => handleStartSession(t)}
                     >
                       Start Session
                     </button>
@@ -181,8 +203,8 @@ export default function SupportConsole({ user }) {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                 <h3 style={{ ...styles.cardTitle, margin: 0, color: colors.primary }}>Active Session</h3>
                 <div style={{ display: 'flex', alignItems: 'center', fontSize: 13, fontWeight: 600, color: colors.danger }}>
-                  <span style={styles.recordingDot} />
-                  Recording
+                  {isRecording && <span style={styles.recordingDot} />}
+                  {isRecording ? 'Recording' : 'No capture'}
                 </div>
               </div>
 
@@ -192,28 +214,24 @@ export default function SupportConsole({ user }) {
                 Session #{activeSession.id} &middot; Ticket #{activeSession.ticketId}
               </div>
 
+              {recordingError && (
+                <div style={{ fontSize: 12, color: colors.danger, marginTop: 8 }}>{recordingError}</div>
+              )}
+
               <textarea
                 style={styles.textarea}
-                placeholder="Session notes..."
+                placeholder="Session notes (used for auto AI analysis on end)..."
                 value={endNotes}
                 onChange={(e) => setEndNotes(e.target.value)}
               />
 
-              <div style={{ display: 'flex', gap: 12 }}>
-                <button
-                  style={{ ...styles.btn, background: colors.danger, flex: 1, padding: '12px 16px' }}
-                  onClick={handleEndSession}
-                  disabled={ending}
-                >
-                  {ending ? 'Ending...' : 'End Session'}
-                </button>
-                <button
-                  style={{ ...styles.btn, background: colors.primary, flex: 1, padding: '12px 16px' }}
-                  onClick={handleUpload}
-                >
-                  Upload Recording
-                </button>
-              </div>
+              <button
+                style={{ ...styles.btn, background: colors.danger, width: '100%', padding: '12px 16px' }}
+                onClick={handleEndSession}
+                disabled={ending}
+              >
+                {ending ? 'Ending & uploading...' : 'End Session'}
+              </button>
 
               {uploadProgress !== null && (
                 <div style={{ marginTop: 16 }}>
@@ -235,7 +253,7 @@ export default function SupportConsole({ user }) {
               <div style={{ fontSize: 40, marginBottom: 12 }}>&#x1F3A7;</div>
               <div style={{ fontSize: 15, fontWeight: 500 }}>No active session</div>
               <div style={{ fontSize: 13, marginTop: 8 }}>
-                Start a session from an assigned ticket
+                Start a session to begin screen capture and chunked upload
               </div>
             </div>
           )}

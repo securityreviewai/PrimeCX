@@ -13,47 +13,36 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "recordings")
-public class Recording {
+@Table(name = "recording_uploads")
+public class RecordingUpload {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "session_id")
+    @JoinColumn(name = "session_id", nullable = false)
     private SupportSession session;
 
     @Column(nullable = false)
     private String s3Key;
 
     @Column(nullable = false)
-    private String s3Bucket;
+    private String uploadId;
 
     private String fileName;
 
-    private Long fileSize;
-
-    private Integer durationSeconds;
-
     private String contentType;
 
-    private LocalDateTime uploadedAt;
+    @Builder.Default
+    private String status = "IN_PROGRESS";
 
-    @Lob
-    @Column(columnDefinition = "TEXT")
-    private String transcript;
-
-    @Lob
-    @Column(columnDefinition = "TEXT")
-    private String redactionRegions;
-
-    private LocalDateTime retentionExpiresAt;
+    private LocalDateTime createdAt;
 
     @PrePersist
-    protected void onUpload() {
-        if (uploadedAt == null) {
-            uploadedAt = LocalDateTime.now();
+    protected void onCreate() {
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
         }
     }
 }

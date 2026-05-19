@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { getDashboard, getSessions, getRecordingsBySession } from '../services/api';
+import { Link } from 'react-router-dom';
+import { getDashboard, getSessions, getRecordingsBySession, getRecentQaReviews } from '../services/api';
 
 const colors = {
   primary: '#4F46E5', success: '#10B981', warning: '#F59E0B',
@@ -39,12 +40,14 @@ const styles = {
     borderBottom: `2px solid ${colors.gray200}`,
   },
   td: { padding: '12px 14px', fontSize: 14, color: colors.gray700, borderBottom: `1px solid ${colors.gray100}` },
+  link: { color: colors.primary, fontSize: 13, fontWeight: 600, textDecoration: 'none' },
 };
 
 export default function ManagerDashboard({ user }) {
   const [stats, setStats] = useState(null);
   const [sessions, setSessions] = useState([]);
   const [allRecordings, setAllRecordings] = useState([]);
+  const [qaReviews, setQaReviews] = useState([]);
   const [executiveFilter, setExecutiveFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -53,15 +56,18 @@ export default function ManagerDashboard({ user }) {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const [dashRes, sessionsRes] = await Promise.all([getDashboard(), getSessions()]);
+        const [dashRes, sessionsRes, qaRes] = await Promise.all([
+          getDashboard(), getSessions(), getRecentQaReviews(),
+        ]);
         setStats(dashRes.data);
         setSessions(sessionsRes.data);
+        setQaReviews(qaRes.data);
 
         const recs = [];
         for (const s of sessionsRes.data.slice(0, 20)) {
           try {
             const r = await getRecordingsBySession(s.id);
-            recs.push(...r.data.map((rec) => ({ ...rec, sessionId: s.id, executiveId: s.executiveId })));
+            recs.push(...r.data.map((rec) => ({ ...rec, sessionId: s.id, executiveId: s.supportExecutiveId })));
           } catch { /* skip */ }
         }
         setAllRecordings(recs);
@@ -74,9 +80,9 @@ export default function ManagerDashboard({ user }) {
     fetchData();
   }, []);
 
-  const executives = [...new Set(sessions.map((s) => s.executiveId).filter(Boolean))];
+  const executives = [...new Set(sessions.map((s) => s.supportExecutiveId).filter(Boolean))];
   const filteredSessions = executiveFilter
-    ? sessions.filter((s) => String(s.executiveId) === executiveFilter)
+    ? sessions.filter((s) => String(s.supportExecutiveId) === executiveFilter)
     : sessions;
 
   if (loading) return <div style={styles.empty}>Loading dashboard...</div>;
@@ -141,7 +147,7 @@ export default function ManagerDashboard({ user }) {
                 <tr key={s.id}>
                   <td style={styles.td}>#{s.id}</td>
                   <td style={styles.td}>#{s.ticketId}</td>
-                  <td style={styles.td}>#{s.executiveId}</td>
+                  <td style={styles.td}>#{s.supportExecutiveId}</td>
                   <td style={styles.td}>{s.startTime ? new Date(s.startTime).toLocaleString() : '—'}</td>
                   <td style={styles.td}>
                     <span style={{
@@ -169,20 +175,33 @@ export default function ManagerDashboard({ user }) {
               <div>
                 <div style={{ fontWeight: 600, fontSize: 14 }}>Recording #{r.id}</div>
                 <div style={{ fontSize: 12, color: colors.gray500, marginTop: 2 }}>
-                  Session #{r.sessionId} &middot; {r.s3Key || 'N/A'}
+                  Session #{r.sessionId} &middot; {r.durationSeconds ?? 0}s
+                  {r.hasRedactions && ' · Redacted'}
+                  {r.transcript && ' · Transcribed'}
                 </div>
               </div>
-              <a
-                href={r.playbackUrl || '#'}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  color: colors.primary, fontSize: 13, fontWeight: 600,
-                  textDecoration: 'none',
-                }}
-              >
-                &#9654; Play
-              </a>
+              <Link to={`/recordings/${r.id}`} style={styles.link}>
+                Review &amp; Play
+              </Link>
+            </div>
+          ))
+        )}
+      </div>
+
+      <div style={styles.card}>
+        <h3 style={styles.cardTitle}>Recent QA Reviews</h3>
+        {qaReviews.length === 0 ? (
+          <div style={styles.empty}>No QA reviews yet</div>
+        ) : (
+          qaReviews.slice(0, 8).map((r) => (
+            <div key={r.id} style={styles.row}>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>{r.reviewerName}</div>
+                <div style={{ fontSize: 12, color: colors.gray500, marginTop: 2 }}>
+                  Recording #{r.recordingId} &middot; Overall {r.overallScore}/5
+                </div>
+              </div>
+              <Link to={`/recordings/${r.recordingId}`} style={styles.link}>View</Link>
             </div>
           ))
         )}

@@ -82,6 +82,12 @@ variable "domain_name" {
   default     = "primecx.example.com"
 }
 
+variable "recording_retention_days" {
+  description = "Days before recordings expire and are deleted from S3"
+  type        = number
+  default     = 365
+}
+
 variable "tags" {
   description = "Default tags applied to all resources"
   type        = map(string)

@@ -28,6 +28,7 @@ public class SupportSessionService {
     private final SupportSessionRepository supportSessionRepository;
     private final TicketRepository ticketRepository;
     private final UserRepository userRepository;
+    private final PostSessionAnalysisService postSessionAnalysisService;
 
     @Transactional
     public SupportSession startSession(CreateSessionRequest request, Long executiveId) {
@@ -35,8 +36,10 @@ public class SupportSessionService {
                 .orElseThrow(() -> new ResourceNotFoundException("Ticket", request.ticketId()));
         User executive = userRepository.findById(executiveId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", executiveId));
-        User user = userRepository.findById(request.userId())
-                .orElseThrow(() -> new ResourceNotFoundException("User", request.userId()));
+        User user = request.userId() != null
+                ? userRepository.findById(request.userId())
+                        .orElseThrow(() -> new ResourceNotFoundException("User", request.userId()))
+                : ticket.getUser();
 
         SupportSession session = new SupportSession();
         session.setTicket(ticket);
@@ -57,7 +60,9 @@ public class SupportSessionService {
         session.setNotes(notes);
 
         log.info("Ending session {}", sessionId);
-        return supportSessionRepository.save(session);
+        SupportSession saved = supportSessionRepository.save(session);
+        postSessionAnalysisService.analyzeSessionOnEnd(sessionId, notes);
+        return saved;
     }
 
     @Transactional
