@@ -9,7 +9,9 @@ import org.springframework.transaction.annotation.Transactional;
 import com.primecx.dto.CreateTicketRequest;
 import com.primecx.dto.TicketDto;
 import com.primecx.dto.UpdateTicketRequest;
+import com.primecx.exception.ForbiddenException;
 import com.primecx.exception.ResourceNotFoundException;
+import com.primecx.model.Role;
 import com.primecx.model.Ticket;
 import com.primecx.model.TicketStatus;
 import com.primecx.model.User;
@@ -26,6 +28,7 @@ public class TicketService {
 
     private final TicketRepository ticketRepository;
     private final UserRepository userRepository;
+    private final SlaService slaService;
 
     @Transactional
     public Ticket createTicket(CreateTicketRequest request, Long userId) {
@@ -35,19 +38,20 @@ public class TicketService {
         Ticket ticket = new Ticket();
         ticket.setTitle(request.title());
         ticket.setDescription(request.description());
-        ticket.setPriority(request.priority());
+        ticket.setPriority(request.priority() != null ? request.priority() : com.primecx.model.TicketPriority.MEDIUM);
         ticket.setStatus(TicketStatus.OPEN);
         ticket.setUser(user);
         ticket.setCreatedAt(LocalDateTime.now());
         ticket.setUpdatedAt(LocalDateTime.now());
+        slaService.applySlaDeadlines(ticket);
 
         log.info("Creating ticket '{}' for user {}", request.title(), userId);
         return ticketRepository.save(ticket);
     }
 
     @Transactional
-    public Ticket updateTicket(Long ticketId, UpdateTicketRequest request) {
-        Ticket ticket = getTicketById(ticketId);
+    public Ticket updateTicket(Long ticketId, UpdateTicketRequest request, User currentUser) {
+        Ticket ticket = getTicketVisibleToUser(ticketId, currentUser);
 
         if (request.title() != null) {
             ticket.setTitle(request.title());
@@ -56,12 +60,22 @@ public class TicketService {
             ticket.setDescription(request.description());
         }
         if (request.status() != null) {
+            if (!isStaff(currentUser) && request.status() != ticket.getStatus()) {
+                throw new ForbiddenException("Only support staff can change ticket status");
+            }
             ticket.setStatus(request.status());
         }
         if (request.priority() != null) {
+            if (!isStaff(currentUser)) {
+                throw new ForbiddenException("Only support staff can change ticket priority");
+            }
             ticket.setPriority(request.priority());
+            slaService.applySlaDeadlines(ticket);
         }
         if (request.assignedToId() != null) {
+            if (!isStaff(currentUser)) {
+                throw new ForbiddenException("Only support staff can assign tickets");
+            }
             User assignee = userRepository.findById(request.assignedToId())
                     .orElseThrow(() -> new ResourceNotFoundException("User", request.assignedToId()));
             ticket.setAssignedTo(assignee);
@@ -74,6 +88,14 @@ public class TicketService {
     public Ticket getTicketById(Long id) {
         return ticketRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Ticket", id));
+    }
+
+    public Ticket getTicketVisibleToUser(Long ticketId, User currentUser) {
+        Ticket ticket = getTicketById(ticketId);
+        if (!canAccessTicket(ticket, currentUser)) {
+            throw new ForbiddenException("You do not have access to this ticket");
+        }
+        return ticket;
     }
 
     public List<Ticket> getTicketsByUser(Long userId) {
@@ -110,7 +132,28 @@ public class TicketService {
                 assignedToId,
                 assignedToName,
                 ticket.getCreatedAt(),
-                ticket.getUpdatedAt()
+                ticket.getUpdatedAt(),
+                ticket.getSlaRespondBy(),
+                ticket.getSlaResolveBy(),
+                ticket.getFirstRespondedAt(),
+                slaService.isResponseBreached(ticket),
+                slaService.isResolveBreached(ticket),
+                slaService.isResponseAtRisk(ticket),
+                slaService.isResolveAtRisk(ticket)
         );
+    }
+
+    private boolean canAccessTicket(Ticket ticket, User user) {
+        if (isStaff(user)) {
+            return true;
+        }
+        return ticket.getUser().getId().equals(user.getId());
+    }
+
+    private boolean isStaff(User user) {
+        Role role = user.getRole();
+        return role == Role.ROLE_SUPPORT_EXECUTIVE
+                || role == Role.ROLE_SUPPORT_ADMIN
+                || role == Role.ROLE_SUPPORT_MANAGER;
     }
 }

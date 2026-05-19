@@ -47,6 +47,12 @@ public class Ticket {
 
     private LocalDateTime updatedAt;
 
+    private LocalDateTime slaRespondBy;
+
+    private LocalDateTime slaResolveBy;
+
+    private LocalDateTime firstRespondedAt;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

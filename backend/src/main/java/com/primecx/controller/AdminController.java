@@ -11,9 +11,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.primecx.dto.DashboardStats;
 import com.primecx.dto.RecordingDto;
+import com.primecx.dto.SlaComplianceSummaryDto;
 import com.primecx.dto.UserDto;
 import com.primecx.service.DashboardService;
 import com.primecx.service.RecordingService;
+import com.primecx.service.TicketAnalyticsReportService;
 import com.primecx.service.UserService;
 
 import lombok.RequiredArgsConstructor;
@@ -29,6 +31,7 @@ public class AdminController {
     private final DashboardService dashboardService;
     private final UserService userService;
     private final RecordingService recordingService;
+    private final TicketAnalyticsReportService ticketAnalyticsReportService;
 
     @GetMapping("/dashboard")
     public ResponseEntity<DashboardStats> getDashboardStats() {
@@ -57,5 +60,10 @@ public class AdminController {
                     .toList();
         }
         return ResponseEntity.ok(dtos);
+    }
+
+    @GetMapping("/reports/sla-compliance")
+    public ResponseEntity<SlaComplianceSummaryDto> getSlaComplianceReport() {
+        return ResponseEntity.ok(ticketAnalyticsReportService.getSlaComplianceSummary());
     }
 }

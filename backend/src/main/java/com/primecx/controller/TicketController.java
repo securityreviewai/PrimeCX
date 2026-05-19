@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,6 +22,7 @@ import com.primecx.model.Role;
 import com.primecx.model.Ticket;
 import com.primecx.model.TicketStatus;
 import com.primecx.model.User;
+import com.primecx.service.TicketAnalyticsReportService;
 import com.primecx.service.TicketService;
 import com.primecx.service.UserService;
 
@@ -35,6 +37,7 @@ public class TicketController {
 
     private final TicketService ticketService;
     private final UserService userService;
+    private final TicketAnalyticsReportService ticketAnalyticsReportService;
 
     @PostMapping
     public ResponseEntity<TicketDto> createTicket(
@@ -62,16 +65,33 @@ public class TicketController {
         return ResponseEntity.ok(dtos);
     }
 
+    @GetMapping("/sla/breached")
+    @PreAuthorize("hasAnyRole('SUPPORT_EXECUTIVE', 'SUPPORT_ADMIN', 'SUPPORT_MANAGER')")
+    public ResponseEntity<List<TicketDto>> getSlaBreachedTickets() {
+        return ResponseEntity.ok(ticketAnalyticsReportService.getBreachedTickets());
+    }
+
+    @GetMapping("/sla/at-risk")
+    @PreAuthorize("hasAnyRole('SUPPORT_EXECUTIVE', 'SUPPORT_ADMIN', 'SUPPORT_MANAGER')")
+    public ResponseEntity<List<TicketDto>> getSlaAtRiskTickets() {
+        return ResponseEntity.ok(ticketAnalyticsReportService.getAtRiskTickets());
+    }
+
     @GetMapping("/{id}")
-    public ResponseEntity<TicketDto> getTicketById(@PathVariable Long id) {
-        return ResponseEntity.ok(ticketService.toDto(ticketService.getTicketById(id)));
+    public ResponseEntity<TicketDto> getTicketById(
+            @PathVariable Long id,
+            @AuthenticationPrincipal OidcUser oidcUser) {
+        User currentUser = userService.getUserByOktaId(oidcUser.getSubject());
+        return ResponseEntity.ok(ticketService.toDto(ticketService.getTicketVisibleToUser(id, currentUser)));
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<TicketDto> updateTicket(
             @PathVariable Long id,
-            @RequestBody UpdateTicketRequest request) {
-        Ticket ticket = ticketService.updateTicket(id, request);
+            @RequestBody UpdateTicketRequest request,
+            @AuthenticationPrincipal OidcUser oidcUser) {
+        User currentUser = userService.getUserByOktaId(oidcUser.getSubject());
+        Ticket ticket = ticketService.updateTicket(id, request, currentUser);
         return ResponseEntity.ok(ticketService.toDto(ticket));
     }
 

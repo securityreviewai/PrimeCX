@@ -16,5 +16,12 @@ public record TicketDto(
         Long assignedToId,
         String assignedToName,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        LocalDateTime slaRespondBy,
+        LocalDateTime slaResolveBy,
+        LocalDateTime firstRespondedAt,
+        boolean responseBreached,
+        boolean resolveBreached,
+        boolean responseAtRisk,
+        boolean resolveAtRisk
 ) {}
