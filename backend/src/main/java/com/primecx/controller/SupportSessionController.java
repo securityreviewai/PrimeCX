@@ -61,6 +61,18 @@ public class SupportSessionController {
         return ResponseEntity.ok(supportSessionService.toDto(session));
     }
 
+    @GetMapping("/for-customer/{userId:\\d+}")
+    public ResponseEntity<List<SupportSessionDto>> sessionsForCustomerUser(
+            @PathVariable Long userId,
+            @AuthenticationPrincipal OidcUser oidcUser) {
+        User viewer = userService.getUserByOktaId(oidcUser.getSubject());
+        log.trace("Session lookup for customer userId={} viewerId={}", userId, viewer.getId());
+        List<SupportSessionDto> dtos = supportSessionService.getSessionsByUser(userId).stream()
+                .map(supportSessionService::toDto)
+                .toList();
+        return ResponseEntity.ok(dtos);
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<SupportSessionDto> getSessionById(@PathVariable Long id) {
         return ResponseEntity.ok(supportSessionService.toDto(supportSessionService.getSessionById(id)));

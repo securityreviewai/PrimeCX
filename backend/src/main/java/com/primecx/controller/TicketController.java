@@ -100,6 +100,18 @@ public class TicketController {
         return ResponseEntity.ok(dtos);
     }
 
+    @GetMapping("/assignee/{assigneeUserId:\\d+}")
+    public ResponseEntity<List<TicketDto>> ticketsForAssignee(
+            @PathVariable Long assigneeUserId,
+            @AuthenticationPrincipal OidcUser oidcUser) {
+        User requester = userService.getUserByOktaId(oidcUser.getSubject());
+        log.trace("Tickets for assignee assigneeUserId={} requesterId={}", assigneeUserId, requester.getId());
+        List<TicketDto> dtos = ticketService.getTicketsByAssignee(assigneeUserId).stream()
+                .map(ticketService::toDto)
+                .toList();
+        return ResponseEntity.ok(dtos);
+    }
+
     @GetMapping("/search")
     public ResponseEntity<PagedTicketsResponse> searchTickets(
             @AuthenticationPrincipal OidcUser oidcUser,
