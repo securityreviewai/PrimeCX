@@ -7,6 +7,7 @@ import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.primecx.dto.UpdateProfileRequest;
 import com.primecx.dto.UserDto;
 import com.primecx.exception.ResourceNotFoundException;
 import com.primecx.model.Role;
@@ -89,6 +90,25 @@ public class UserService {
     public User deactivateUser(Long userId) {
         User user = getUserById(userId);
         user.setActive(false);
+        user.setUpdatedAt(LocalDateTime.now());
+        return userRepository.save(user);
+    }
+
+    @Transactional
+    public User updateProfile(Long userId, UpdateProfileRequest request) {
+        User user = getUserById(userId);
+        if (request.getFirstName() != null) {
+            user.setFirstName(request.getFirstName());
+        }
+        if (request.getLastName() != null) {
+            user.setLastName(request.getLastName());
+        }
+        if (request.getEmail() != null) {
+            user.setEmail(request.getEmail());
+        }
+        if (request.getRole() != null) {
+            user.setRole(request.getRole());
+        }
         user.setUpdatedAt(LocalDateTime.now());
         return userRepository.save(user);
     }

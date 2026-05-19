@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.primecx.dto.CreateTicketRequest;
@@ -23,6 +24,7 @@ import com.primecx.model.Ticket;
 import com.primecx.model.TicketStatus;
 import com.primecx.model.User;
 import com.primecx.service.TicketAnalyticsReportService;
+import com.primecx.service.TicketSearchService;
 import com.primecx.service.TicketService;
 import com.primecx.service.UserService;
 
@@ -38,6 +40,7 @@ public class TicketController {
     private final TicketService ticketService;
     private final UserService userService;
     private final TicketAnalyticsReportService ticketAnalyticsReportService;
+    private final TicketSearchService ticketSearchService;
 
     @PostMapping
     public ResponseEntity<TicketDto> createTicket(
@@ -63,6 +66,11 @@ public class TicketController {
 
         List<TicketDto> dtos = tickets.stream().map(ticketService::toDto).toList();
         return ResponseEntity.ok(dtos);
+    }
+
+    @GetMapping("/search")
+    public ResponseEntity<List<TicketDto>> searchTickets(@RequestParam String q) {
+        return ResponseEntity.ok(ticketSearchService.search(q));
     }
 
     @GetMapping("/sla/breached")

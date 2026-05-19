@@ -7,9 +7,13 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.primecx.dto.UpdateProfileRequest;
 import com.primecx.dto.UserDto;
 import com.primecx.model.User;
 import com.primecx.service.UserService;
@@ -29,6 +33,14 @@ public class AuthController {
     public ResponseEntity<UserDto> getCurrentUser(@AuthenticationPrincipal OidcUser oidcUser) {
         User user = userService.createOrUpdateFromOidc(oidcUser);
         return ResponseEntity.ok(userService.toDto(user));
+    }
+
+    @PutMapping("/me/profile")
+    public ResponseEntity<UserDto> updateProfile(
+            @AuthenticationPrincipal OidcUser oidcUser,
+            @RequestBody UpdateProfileRequest request) {
+        User user = userService.getUserByOktaId(oidcUser.getSubject());
+        return ResponseEntity.ok(userService.toDto(userService.updateProfile(user.getId(), request)));
     }
 
     @PostMapping("/logout")
