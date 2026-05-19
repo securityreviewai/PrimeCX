@@ -2,6 +2,7 @@ package com.primecx.service;
 
 import java.util.List;
 
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +27,22 @@ public class SavedReplyService {
     @Transactional(readOnly = true)
     public List<SavedReplyDto> listAll() {
         return savedReplyRepository.findAllByOrderByTitleAsc().stream().map(this::toDto).toList();
+    }
+
+    /**
+     * Typeahead search on title/body. Query must be at least 2 characters after sanitizing SQL LIKE metacharacters.
+     */
+    @Transactional(readOnly = true)
+    public List<SavedReplyDto> search(String rawQuery, int limit) {
+        String core = stripLikeMetacharacters(rawQuery == null ? "" : rawQuery);
+        if (core.length() < 2) {
+            return List.of();
+        }
+        int cap = Math.min(Math.max(limit, 1), 50);
+        String pattern = "%" + core + "%";
+        return savedReplyRepository.searchByTitleOrBodyLike(pattern, PageRequest.of(0, cap)).stream()
+                .map(this::toDto)
+                .toList();
     }
 
     @Transactional
@@ -64,5 +81,9 @@ public class SavedReplyService {
 
     private SavedReplyDto toDto(SavedReply row) {
         return new SavedReplyDto(row.getId(), row.getTitle(), row.getBody(), row.getCreatedAt());
+    }
+
+    private static String stripLikeMetacharacters(String value) {
+        return value.replace("\\", "").replace("%", "").replace("_", "").trim().toLowerCase();
     }
 }

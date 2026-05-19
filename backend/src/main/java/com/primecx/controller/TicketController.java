@@ -162,6 +162,15 @@ public class TicketController {
         return ResponseEntity.ok(ticketService.toDto(ticket));
     }
 
+    @PostMapping("/{id:\\d+}/reopen")
+    public ResponseEntity<TicketDto> reopenTicket(
+            @PathVariable Long id,
+            @AuthenticationPrincipal OidcUser oidcUser) {
+        User currentUser = userService.getUserByOktaId(oidcUser.getSubject());
+        Ticket ticket = ticketService.reopenTicket(id, currentUser);
+        return ResponseEntity.ok(ticketService.toDto(ticket));
+    }
+
     @GetMapping("/{id:\\d+}/messages")
     public ResponseEntity<List<TicketMessageDto>> listTicketMessages(
             @PathVariable Long id,

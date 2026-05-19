@@ -139,10 +139,13 @@ For local development, LocalStack handles S3. For production:
 | GET | `/api/tickets` | List support tickets |
 | GET | `/api/tickets/tags` | Distinct tags on tickets visible to the caller (role-scoped) |
 | POST | `/api/tickets` | Create a new ticket |
+| POST | `/api/tickets/{id}/reopen` | Reopen a resolved or closed ticket (same visibility as ticket); refreshes first-response SLA from now |
 | PUT | `/api/tickets/{id}` | Update a ticket |
 | POST | `/api/tickets/{id}/release` | Release assignee; ticket returns to OPEN / unassigned queue (executive self-release or admin / manager) |
 | GET | `/api/tickets/{id}/sessions` | Support sessions for a ticket (same visibility as the ticket) |
 | GET | `/api/tickets/{id}/recordings` | Session recordings for a ticket, newest first (same visibility as the ticket); use GET `/api/recordings/{id}` for download URLs |
+| GET | `/api/saved-replies` | List saved replies / macros (support roles) |
+| GET | `/api/saved-replies/search` | Search saved replies by title or body (`q`, optional `limit` max 50; support roles) |
 | GET | `/api/sessions` | List support sessions |
 | POST | `/api/sessions` | Start a new support session |
 | POST | `/api/sessions/{id}/end` | End a session with notes |

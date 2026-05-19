@@ -112,6 +112,25 @@ public class TicketService {
         return saved;
     }
 
+    @Transactional
+    public Ticket reopenTicket(Long ticketId, User actor) {
+        Ticket ticket = getTicketVisibleTo(ticketId, actor);
+        if (ticket.getStatus() != TicketStatus.RESOLVED && ticket.getStatus() != TicketStatus.CLOSED) {
+            throw new IllegalArgumentException("Only resolved or closed tickets can be reopened.");
+        }
+        if (ticket.getAssignedTo() != null) {
+            ticket.setStatus(TicketStatus.IN_PROGRESS);
+        } else {
+            ticket.setStatus(TicketStatus.OPEN);
+        }
+        ticket.setSlaRespondBy(computeSlaRespondBy(ticket.getPriority(), LocalDateTime.now()));
+        ticket.setUpdatedAt(LocalDateTime.now());
+        Ticket saved = ticketRepository.save(ticket);
+        ticketActivityService.record(saved.getId(), actor, TicketActivityType.REOPENED, "Ticket reopened");
+        log.info("Ticket {} reopened by user {}", ticketId, actor.getId());
+        return saved;
+    }
+
     @Transactional(readOnly = true)
     public boolean writeVisibleTicketsCsv(User viewer, Writer writer) throws IOException {
         Specification<Ticket> spec = Specification.where(TicketSpecifications.visibleToUser(viewer));

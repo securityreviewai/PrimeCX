@@ -103,6 +103,9 @@ export const claimTicket = (id) => api.post(`/tickets/${id}/claim`);
 /** Release assignment; ticket goes back to OPEN / pool (executive, admin, or manager). */
 export const releaseTicket = (id) => api.post(`/tickets/${id}/release`);
 
+/** Reopen RESOLVED/CLOSED ticket (must be allowed to view it). */
+export const reopenTicket = (id) => api.post(`/tickets/${id}/reopen`);
+
 export const exportTicketsCsv = () =>
   api.get('/tickets/export', { responseType: 'blob', headers: { Accept: 'text/csv' } });
 
@@ -120,6 +123,10 @@ export const createSavedReply = (payload) => api.post('/saved-replies', payload)
 export const updateSavedReply = (id, payload) => api.put(`/saved-replies/${id}`, payload);
 
 export const deleteSavedReply = (id) => api.delete(`/saved-replies/${id}`);
+
+/** @param {Record<string,string|number|undefined>} params — q (required, min 2 chars effective), limit */
+export const searchSavedReplies = (params) =>
+  api.get('/saved-replies/search', { params: { limit: 20, ...params } });
 
 export const getSessions = () => api.get('/sessions');
 export const startSession = (data) => api.post('/sessions', data);

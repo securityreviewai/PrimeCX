@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.primecx.dto.CreateSavedReplyRequest;
@@ -38,6 +39,14 @@ public class SavedReplyController {
     @PreAuthorize("hasAnyRole('SUPPORT_EXECUTIVE', 'SUPPORT_ADMIN', 'SUPPORT_MANAGER')")
     public ResponseEntity<List<SavedReplyDto>> list() {
         return ResponseEntity.ok(savedReplyService.listAll());
+    }
+
+    @GetMapping("/search")
+    @PreAuthorize("hasAnyRole('SUPPORT_EXECUTIVE', 'SUPPORT_ADMIN', 'SUPPORT_MANAGER')")
+    public ResponseEntity<List<SavedReplyDto>> search(
+            @RequestParam String q,
+            @RequestParam(defaultValue = "20") int limit) {
+        return ResponseEntity.ok(savedReplyService.search(q, limit));
     }
 
     @PostMapping
