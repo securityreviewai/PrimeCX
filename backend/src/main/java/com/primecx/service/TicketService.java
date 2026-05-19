@@ -464,6 +464,14 @@ public class TicketService {
                 page.getSize());
     }
 
+    @Transactional(readOnly = true)
+    public List<TicketDto> lookupTicketsByIds(List<Long> ticketIds) {
+        List<Long> distinct = ticketIds.stream().distinct().toList();
+        return ticketRepository.findAllById(distinct).stream()
+                .map(this::toDto)
+                .toList();
+    }
+
     /**
      * Distinct normalized tags from tickets the viewer may access (aligned with ticket visibility rules).
      */

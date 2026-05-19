@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.primecx.dto.CreateTicketMessageRequest;
+import com.primecx.dto.BulkTicketLookupRequest;
 import com.primecx.dto.CreateTicketRequest;
 import com.primecx.dto.MyTicketSummaryDto;
 import com.primecx.dto.PagedTicketsResponse;
@@ -69,6 +70,15 @@ public class TicketController {
         User currentUser = userService.getUserByOktaId(oidcUser.getSubject());
         Ticket ticket = ticketService.createTicket(request, currentUser.getId());
         return ResponseEntity.status(HttpStatus.CREATED).body(ticketService.toDto(ticket));
+    }
+
+    @PostMapping("/bulk-lookup")
+    public ResponseEntity<List<TicketDto>> bulkLookupTickets(
+            @Valid @RequestBody BulkTicketLookupRequest body,
+            @AuthenticationPrincipal OidcUser oidcUser) {
+        User requester = userService.getUserByOktaId(oidcUser.getSubject());
+        log.debug("Bulk ticket lookup count={} requesterId={}", body.ticketIds().size(), requester.getId());
+        return ResponseEntity.ok(ticketService.lookupTicketsByIds(body.ticketIds()));
     }
 
     @GetMapping

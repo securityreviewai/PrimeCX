@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.primecx.dto.UserDto;
 import com.primecx.dto.UserExistsResponse;
 import com.primecx.model.Role;
+import com.primecx.model.User;
 import com.primecx.service.UserService;
 
 import lombok.RequiredArgsConstructor;
@@ -53,6 +54,14 @@ public class UserController {
     @GetMapping("/directory")
     public ResponseEntity<UserDto> lookupByEmail(@RequestParam String email) {
         return ResponseEntity.ok(userService.toDto(userService.getUserByEmail(email.strip())));
+    }
+
+    @GetMapping("/mention-candidates")
+    public ResponseEntity<List<UserDto>> mentionCandidates() {
+        return ResponseEntity.ok(userService.getAllUsers().stream()
+                .filter(User::isActive)
+                .map(userService::toDto)
+                .toList());
     }
 
     @GetMapping("/exists")
