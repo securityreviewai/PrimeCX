@@ -165,6 +165,12 @@ export const getExecutiveWorkloadReport = () => api.get('/admin/reports/executiv
 export const getSatisfactionReport = () => api.get('/admin/reports/satisfaction');
 export const getTicketVolumeReport = (params = {}) =>
   api.get('/admin/reports/ticket-volume', { params: { days: 30, ...params } });
+
+export const getTicketsByCategoryReport = (params = {}) =>
+  api.get('/admin/reports/tickets-by-category', { params: { days: 30, ...params } });
+
+export const getResolutionTimeReport = (params = {}) =>
+  api.get('/admin/reports/resolution-time', { params: { days: 90, ...params } });
 export const getUsers = () => api.get('/users');
 
 /** Active support executives for assignment pickers (admin / manager). */

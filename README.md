@@ -164,6 +164,8 @@ For local development, LocalStack handles S3. For production:
 | GET | `/api/admin/reports/executive-workload` | Per–support-executive counts: OPEN+IN_PROGRESS assigned tickets and ACTIVE sessions |
 | GET | `/api/admin/reports/satisfaction` | Global CSAT summary: averages, per-star counts, tickets with written feedback |
 | GET | `/api/admin/reports/ticket-volume` | Daily ticket creation counts for charting (`days` 1–366, default 30); zero-filled per calendar day |
+| GET | `/api/admin/reports/tickets-by-category` | Tickets created in the window, counted per category enum (`days` default 30); every category listed (zero if none) |
+| GET | `/api/admin/reports/resolution-time` | RESOLVED/CLOSED tickets updated in the window: count + avg hours from creation to last update (`days` default 90) |
 | GET | `/actuator/health` | Health check (public) |
 
 ## Deployment

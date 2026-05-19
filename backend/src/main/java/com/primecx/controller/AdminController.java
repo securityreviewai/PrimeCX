@@ -16,7 +16,9 @@ import com.primecx.dto.DashboardStats;
 import com.primecx.dto.ExecutiveWorkloadDto;
 import com.primecx.dto.PagedAdminActivityFeedResponse;
 import com.primecx.dto.RecordingDto;
+import com.primecx.dto.ResolutionTimeSummaryDto;
 import com.primecx.dto.SatisfactionSummaryDto;
+import com.primecx.dto.TicketCategoryMixDto;
 import com.primecx.dto.TicketVolumeBucketDto;
 import com.primecx.dto.UserDto;
 import com.primecx.service.DashboardService;
@@ -24,6 +26,7 @@ import com.primecx.service.RecordingService;
 import com.primecx.service.SatisfactionReportService;
 import com.primecx.service.SupportWorkloadReportService;
 import com.primecx.service.TicketActivityService;
+import com.primecx.service.TicketAnalyticsReportService;
 import com.primecx.service.TicketVolumeReportService;
 import com.primecx.service.UserService;
 
@@ -44,6 +47,7 @@ public class AdminController {
     private final SupportWorkloadReportService supportWorkloadReportService;
     private final SatisfactionReportService satisfactionReportService;
     private final TicketVolumeReportService ticketVolumeReportService;
+    private final TicketAnalyticsReportService ticketAnalyticsReportService;
 
     @GetMapping("/dashboard")
     public ResponseEntity<DashboardStats> getDashboardStats() {
@@ -70,6 +74,18 @@ public class AdminController {
     public ResponseEntity<List<TicketVolumeBucketDto>> ticketVolume(
             @RequestParam(defaultValue = "30") int days) {
         return ResponseEntity.ok(ticketVolumeReportService.ticketsCreatedPerDay(days));
+    }
+
+    @GetMapping("/reports/tickets-by-category")
+    public ResponseEntity<List<TicketCategoryMixDto>> ticketsByCategory(
+            @RequestParam(defaultValue = "30") int days) {
+        return ResponseEntity.ok(ticketAnalyticsReportService.ticketsCreatedByCategoryMix(days));
+    }
+
+    @GetMapping("/reports/resolution-time")
+    public ResponseEntity<ResolutionTimeSummaryDto> resolutionTime(
+            @RequestParam(defaultValue = "90") int days) {
+        return ResponseEntity.ok(ticketAnalyticsReportService.resolutionTimeSummary(days));
     }
 
     @GetMapping("/users")

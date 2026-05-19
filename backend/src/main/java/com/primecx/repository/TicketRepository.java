@@ -60,4 +60,26 @@ public interface TicketRepository extends JpaRepository<Ticket, Long>, JpaSpecif
             """, nativeQuery = true)
     List<Object[]> aggregateTicketsCreatedPerDay(@Param("from") java.time.LocalDateTime from,
             @Param("to") java.time.LocalDateTime to);
+
+    @Query(value = """
+            SELECT t.category, COUNT(*)
+            FROM tickets t
+            WHERE t.created_at >= :from
+              AND t.created_at < :to
+            GROUP BY t.category
+            ORDER BY t.category
+            """, nativeQuery = true)
+    List<Object[]> aggregateTicketsCreatedByCategory(@Param("from") java.time.LocalDateTime from,
+            @Param("to") java.time.LocalDateTime to);
+
+    @Query(value = """
+            SELECT COUNT(*),
+                   AVG(EXTRACT(EPOCH FROM (t.updated_at - t.created_at)) / 3600.0)
+            FROM tickets t
+            WHERE t.status IN ('RESOLVED', 'CLOSED')
+              AND t.updated_at >= :from
+              AND t.updated_at < :to
+            """, nativeQuery = true)
+    List<Object[]> aggregateResolutionHoursForClosedTickets(@Param("from") java.time.LocalDateTime from,
+            @Param("to") java.time.LocalDateTime to);
 }
