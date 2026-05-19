@@ -1,6 +1,7 @@
 package com.primecx.service;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
@@ -44,6 +45,24 @@ public class UserService {
 
     public List<User> getUsersByRole(Role role) {
         return userRepository.findByRole(role);
+    }
+
+    /**
+     * Active support executives, sorted by last name then first name (for assignment pickers).
+     */
+    public List<UserDto> listActiveSupportExecutivesForAssignment() {
+        return userRepository.findByRole(Role.ROLE_SUPPORT_EXECUTIVE).stream()
+                .filter(User::isActive)
+                .sorted(Comparator
+                        .comparing((User u) -> nameKey(u.getLastName()))
+                        .thenComparing(u -> nameKey(u.getFirstName()))
+                        .thenComparing(User::getId))
+                .map(this::toDto)
+                .toList();
+    }
+
+    private static String nameKey(String s) {
+        return s == null || s.isBlank() ? "" : s.toLowerCase();
     }
 
     @Transactional

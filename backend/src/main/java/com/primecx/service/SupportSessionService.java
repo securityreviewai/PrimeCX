@@ -1,6 +1,7 @@
 package com.primecx.service;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -28,6 +29,7 @@ public class SupportSessionService {
     private final SupportSessionRepository supportSessionRepository;
     private final TicketRepository ticketRepository;
     private final UserRepository userRepository;
+    private final TicketService ticketService;
 
     @Transactional
     public SupportSession startSession(CreateSessionRequest request, Long executiveId) {
@@ -85,6 +87,20 @@ public class SupportSessionService {
 
     public List<SupportSession> getActiveSessions() {
         return supportSessionRepository.findByStatus(SessionStatus.ACTIVE);
+    }
+
+    /**
+     * Sessions linked to the ticket, newest first. Viewer must be allowed to see the ticket.
+     */
+    @Transactional(readOnly = true)
+    public List<SupportSessionDto> listSessionsForTicket(Long ticketId, User viewer) {
+        ticketService.getTicketVisibleTo(ticketId, viewer);
+        List<SupportSession> sessions = supportSessionRepository.findByTicketId(ticketId);
+        Comparator<LocalDateTime> timeDesc = Comparator.nullsLast(Comparator.reverseOrder());
+        return sessions.stream()
+                .sorted(Comparator.comparing(SupportSession::getStartTime, timeDesc))
+                .map(this::toDto)
+                .toList();
     }
 
     public SupportSessionDto toDto(SupportSession session) {

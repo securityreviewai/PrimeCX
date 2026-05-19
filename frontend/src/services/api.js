@@ -54,6 +54,9 @@ export const getTicketPool = (params = {}) =>
 
 export const getTicket = (id) => api.get(`/tickets/${id}`);
 
+/** Support sessions linked to a ticket (subject to ticket visibility). */
+export const getTicketSessions = (ticketId) => api.get(`/tickets/${ticketId}/sessions`);
+
 /** @param {Record<string,string|number|undefined>} params — page, size, sort */
 export const getTicketActivity = (ticketId, params = {}) =>
   api.get(`/tickets/${ticketId}/activity`, {
@@ -126,6 +129,9 @@ export const getDashboard = () => api.get('/admin/dashboard');
 export const getAdminRecentTicketActivity = (params = {}) =>
   api.get('/admin/activity/recent', { params: { page: 0, size: 20, sort: 'createdAt,desc', ...params } });
 export const getUsers = () => api.get('/users');
+
+/** Active support executives for assignment pickers (admin / manager). */
+export const getAssignableExecutives = () => api.get('/users/assignable-executives');
 export const updateUserRole = (id, role) => api.put(`/users/${id}/role`, { role });
 
 export const getAISummary = () => api.get('/ai/insights/summary');

@@ -134,11 +134,13 @@ For local development, LocalStack handles S3. For production:
 | GET | `/api/auth/me` | Current authenticated user |
 | POST | `/api/auth/logout` | Invalidate session |
 | GET | `/api/users` | List all users (admin) |
+| GET | `/api/users/assignable-executives` | Active support executives for ticket assignment (admin / manager) |
 | PUT | `/api/users/{id}/role` | Update a user's role |
 | GET | `/api/tickets` | List support tickets |
 | GET | `/api/tickets/tags` | Distinct tags on tickets visible to the caller (role-scoped) |
 | POST | `/api/tickets` | Create a new ticket |
 | PUT | `/api/tickets/{id}` | Update a ticket |
+| GET | `/api/tickets/{id}/sessions` | Support sessions for a ticket (same visibility as the ticket) |
 | GET | `/api/sessions` | List support sessions |
 | POST | `/api/sessions` | Start a new support session |
 | POST | `/api/sessions/{id}/end` | End a session with notes |

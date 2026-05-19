@@ -36,6 +36,15 @@ public class UserController {
         return ResponseEntity.ok(users);
     }
 
+    /**
+     * Compact list of active support executives for ticket assignment UI.
+     */
+    @GetMapping("/assignable-executives")
+    @PreAuthorize("hasAnyRole('SUPPORT_ADMIN', 'SUPPORT_MANAGER')")
+    public ResponseEntity<List<UserDto>> listAssignableExecutives() {
+        return ResponseEntity.ok(userService.listActiveSupportExecutivesForAssignment());
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<UserDto> getUserById(@PathVariable Long id) {
         return ResponseEntity.ok(userService.toDto(userService.getUserById(id)));

@@ -26,6 +26,7 @@ import com.primecx.dto.CreateTicketMessageRequest;
 import com.primecx.dto.CreateTicketRequest;
 import com.primecx.dto.PagedTicketsResponse;
 import com.primecx.dto.SubmitTicketSatisfactionRequest;
+import com.primecx.dto.SupportSessionDto;
 import com.primecx.dto.TicketDto;
 import com.primecx.dto.TicketMessageDto;
 import com.primecx.dto.TicketStatsResponse;
@@ -36,6 +37,7 @@ import com.primecx.model.TicketCategory;
 import com.primecx.model.TicketPriority;
 import com.primecx.model.TicketStatus;
 import com.primecx.model.User;
+import com.primecx.service.SupportSessionService;
 import com.primecx.service.TicketMessageService;
 import com.primecx.service.TicketService;
 import com.primecx.service.UserService;
@@ -54,6 +56,7 @@ public class TicketController {
     private final TicketService ticketService;
     private final TicketMessageService ticketMessageService;
     private final UserService userService;
+    private final SupportSessionService supportSessionService;
 
     @PostMapping
     public ResponseEntity<TicketDto> createTicket(
@@ -162,6 +165,14 @@ public class TicketController {
         User currentUser = userService.getUserByOktaId(oidcUser.getSubject());
         TicketMessageDto created = ticketMessageService.addMessage(id, currentUser, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
+    }
+
+    @GetMapping("/{id:\\d+}/sessions")
+    public ResponseEntity<List<SupportSessionDto>> listSessionsForTicket(
+            @PathVariable Long id,
+            @AuthenticationPrincipal OidcUser oidcUser) {
+        User currentUser = userService.getUserByOktaId(oidcUser.getSubject());
+        return ResponseEntity.ok(supportSessionService.listSessionsForTicket(id, currentUser));
     }
 
     @GetMapping("/{id:\\d+}")
