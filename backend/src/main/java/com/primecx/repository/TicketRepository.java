@@ -38,4 +38,14 @@ public interface TicketRepository extends JpaRepository<Ticket, Long>, JpaSpecif
     List<Ticket> findByStatus(TicketStatus status);
 
     long countByStatus(TicketStatus status);
+
+    long countByCustomerRatingIsNotNull();
+
+    long countByCustomerRating(Integer rating);
+
+    @Query("SELECT AVG(t.customerRating) FROM Ticket t WHERE t.customerRating IS NOT NULL")
+    Double averageCustomerRating();
+
+    @Query("SELECT COUNT(t) FROM Ticket t WHERE t.customerFeedback IS NOT NULL AND TRIM(t.customerFeedback) <> ''")
+    long countTicketsWithNonEmptyFeedback();
 }

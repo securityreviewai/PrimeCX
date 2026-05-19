@@ -70,6 +70,10 @@ export const getTicketRecordings = (ticketId) => api.get(`/tickets/${ticketId}/r
 /** Merged activity + message timeline (chronological). */
 export const getTicketTimeline = (ticketId) => api.get(`/tickets/${ticketId}/timeline`);
 
+/** Plain-text transcript (download). */
+export const getTicketTranscript = (ticketId) =>
+  api.get(`/tickets/${ticketId}/transcript`, { responseType: 'text' });
+
 /** @param {Record<string,string|number|undefined>} params — page, size, sort */
 export const getTicketActivity = (ticketId, params = {}) =>
   api.get(`/tickets/${ticketId}/activity`, {
@@ -152,6 +156,7 @@ export const getDashboard = () => api.get('/admin/dashboard');
 export const getAdminRecentTicketActivity = (params = {}) =>
   api.get('/admin/activity/recent', { params: { page: 0, size: 20, sort: 'createdAt,desc', ...params } });
 export const getExecutiveWorkloadReport = () => api.get('/admin/reports/executive-workload');
+export const getSatisfactionReport = () => api.get('/admin/reports/satisfaction');
 export const getUsers = () => api.get('/users');
 
 /** Active support executives for assignment pickers (admin / manager). */

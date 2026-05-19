@@ -6,6 +6,7 @@ import java.util.List;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -46,6 +47,7 @@ import com.primecx.service.SupportSessionService;
 import com.primecx.service.TicketMessageService;
 import com.primecx.service.TicketService;
 import com.primecx.service.TicketTimelineService;
+import com.primecx.service.TicketTranscriptService;
 import com.primecx.service.UserService;
 
 import jakarta.servlet.http.HttpServletResponse;
@@ -65,6 +67,7 @@ public class TicketController {
     private final SupportSessionService supportSessionService;
     private final RecordingService recordingService;
     private final TicketTimelineService ticketTimelineService;
+    private final TicketTranscriptService ticketTranscriptService;
 
     @PostMapping
     public ResponseEntity<TicketDto> createTicket(
@@ -263,6 +266,18 @@ public class TicketController {
             @AuthenticationPrincipal OidcUser oidcUser) {
         User currentUser = userService.getUserByOktaId(oidcUser.getSubject());
         return ResponseEntity.ok(ticketTimelineService.buildTimeline(id, currentUser));
+    }
+
+    @GetMapping(value = "/{id:\\d+}/transcript", produces = MediaType.TEXT_PLAIN_VALUE)
+    public ResponseEntity<String> ticketTranscript(
+            @PathVariable Long id,
+            @AuthenticationPrincipal OidcUser oidcUser) {
+        User currentUser = userService.getUserByOktaId(oidcUser.getSubject());
+        String text = ticketTranscriptService.buildPlainTextTranscript(id, currentUser);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"ticket-" + id + "-transcript.txt\"")
+                .contentType(MediaType.TEXT_PLAIN)
+                .body(text);
     }
 
     @GetMapping("/{id:\\d+}")

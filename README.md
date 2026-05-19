@@ -147,6 +147,7 @@ For local development, LocalStack handles S3. For production:
 | GET | `/api/tickets/{id}/sessions` | Support sessions for a ticket (same visibility as the ticket) |
 | GET | `/api/tickets/{id}/recordings` | Session recordings for a ticket, newest first (same visibility as the ticket); use GET `/api/recordings/{id}` for download URLs |
 | GET | `/api/tickets/{id}/timeline` | Merged chronological activity + messages (internal notes only for staff; same ticket visibility rules) |
+| GET | `/api/tickets/{id}/transcript` | Plain-text export of ticket header + timeline (`text/plain`; same visibility as timeline) |
 | GET | `/api/saved-replies` | List saved replies / macros (support roles) |
 | GET | `/api/saved-replies/search` | Search saved replies by title or body (`q`, optional `limit` max 50; support roles) |
 | GET | `/api/sessions` | List support sessions |
@@ -159,6 +160,7 @@ For local development, LocalStack handles S3. For production:
 | GET | `/api/admin/dashboard` | Dashboard statistics |
 | GET | `/api/admin/activity/recent` | Paginated recent ticket activity across all tickets (admin / manager) |
 | GET | `/api/admin/reports/executive-workload` | Per–support-executive counts: OPEN+IN_PROGRESS assigned tickets and ACTIVE sessions |
+| GET | `/api/admin/reports/satisfaction` | Global CSAT summary: averages, per-star counts, tickets with written feedback |
 | GET | `/actuator/health` | Health check (public) |
 
 ## Deployment

@@ -16,9 +16,11 @@ import com.primecx.dto.DashboardStats;
 import com.primecx.dto.ExecutiveWorkloadDto;
 import com.primecx.dto.PagedAdminActivityFeedResponse;
 import com.primecx.dto.RecordingDto;
+import com.primecx.dto.SatisfactionSummaryDto;
 import com.primecx.dto.UserDto;
 import com.primecx.service.DashboardService;
 import com.primecx.service.RecordingService;
+import com.primecx.service.SatisfactionReportService;
 import com.primecx.service.SupportWorkloadReportService;
 import com.primecx.service.TicketActivityService;
 import com.primecx.service.UserService;
@@ -38,6 +40,7 @@ public class AdminController {
     private final RecordingService recordingService;
     private final TicketActivityService ticketActivityService;
     private final SupportWorkloadReportService supportWorkloadReportService;
+    private final SatisfactionReportService satisfactionReportService;
 
     @GetMapping("/dashboard")
     public ResponseEntity<DashboardStats> getDashboardStats() {
@@ -53,6 +56,11 @@ public class AdminController {
     @GetMapping("/reports/executive-workload")
     public ResponseEntity<List<ExecutiveWorkloadDto>> executiveWorkload() {
         return ResponseEntity.ok(supportWorkloadReportService.executiveWorkloadSnapshot());
+    }
+
+    @GetMapping("/reports/satisfaction")
+    public ResponseEntity<SatisfactionSummaryDto> satisfactionSummary() {
+        return ResponseEntity.ok(satisfactionReportService.buildSummary());
     }
 
     @GetMapping("/users")
