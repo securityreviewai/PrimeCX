@@ -67,6 +67,9 @@ export const getTicketSessions = (ticketId) => api.get(`/tickets/${ticketId}/ses
 /** Recording metadata for all sessions on this ticket (no presigned URLs; use getRecording per id). */
 export const getTicketRecordings = (ticketId) => api.get(`/tickets/${ticketId}/recordings`);
 
+/** Merged activity + message timeline (chronological). */
+export const getTicketTimeline = (ticketId) => api.get(`/tickets/${ticketId}/timeline`);
+
 /** @param {Record<string,string|number|undefined>} params — page, size, sort */
 export const getTicketActivity = (ticketId, params = {}) =>
   api.get(`/tickets/${ticketId}/activity`, {
@@ -148,6 +151,7 @@ export const getDashboard = () => api.get('/admin/dashboard');
 /** @param {Record<string,string|number|undefined>} params — page, size, sort */
 export const getAdminRecentTicketActivity = (params = {}) =>
   api.get('/admin/activity/recent', { params: { page: 0, size: 20, sort: 'createdAt,desc', ...params } });
+export const getExecutiveWorkloadReport = () => api.get('/admin/reports/executive-workload');
 export const getUsers = () => api.get('/users');
 
 /** Active support executives for assignment pickers (admin / manager). */

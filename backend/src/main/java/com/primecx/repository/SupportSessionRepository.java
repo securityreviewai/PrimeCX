@@ -19,4 +19,6 @@ public interface SupportSessionRepository extends JpaRepository<SupportSession, 
     List<SupportSession> findByStatus(SessionStatus status);
 
     long countByStatus(SessionStatus status);
+
+    long countBySupportExecutive_IdAndStatus(Long supportExecutiveId, SessionStatus status);
 }

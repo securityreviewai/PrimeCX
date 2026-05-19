@@ -33,6 +33,7 @@ import com.primecx.dto.SupportSessionDto;
 import com.primecx.dto.TicketDto;
 import com.primecx.dto.TicketMessageDto;
 import com.primecx.dto.TicketStatsResponse;
+import com.primecx.dto.TicketTimelineEntryDto;
 import com.primecx.dto.UpdateTicketRequest;
 import com.primecx.model.Role;
 import com.primecx.model.Ticket;
@@ -44,6 +45,7 @@ import com.primecx.service.RecordingService;
 import com.primecx.service.SupportSessionService;
 import com.primecx.service.TicketMessageService;
 import com.primecx.service.TicketService;
+import com.primecx.service.TicketTimelineService;
 import com.primecx.service.UserService;
 
 import jakarta.servlet.http.HttpServletResponse;
@@ -62,6 +64,7 @@ public class TicketController {
     private final UserService userService;
     private final SupportSessionService supportSessionService;
     private final RecordingService recordingService;
+    private final TicketTimelineService ticketTimelineService;
 
     @PostMapping
     public ResponseEntity<TicketDto> createTicket(
@@ -252,6 +255,14 @@ public class TicketController {
             @AuthenticationPrincipal OidcUser oidcUser) {
         User currentUser = userService.getUserByOktaId(oidcUser.getSubject());
         return ResponseEntity.ok(recordingService.listRecordingsForTicket(id, currentUser));
+    }
+
+    @GetMapping("/{id:\\d+}/timeline")
+    public ResponseEntity<List<TicketTimelineEntryDto>> ticketTimeline(
+            @PathVariable Long id,
+            @AuthenticationPrincipal OidcUser oidcUser) {
+        User currentUser = userService.getUserByOktaId(oidcUser.getSubject());
+        return ResponseEntity.ok(ticketTimelineService.buildTimeline(id, currentUser));
     }
 
     @GetMapping("/{id:\\d+}")

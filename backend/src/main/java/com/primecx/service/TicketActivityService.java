@@ -1,5 +1,7 @@
 package com.primecx.service;
 
+import java.util.List;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -53,6 +55,13 @@ public class TicketActivityService {
                 page.getTotalPages(),
                 page.getNumber(),
                 page.getSize());
+    }
+
+    @Transactional(readOnly = true)
+    public List<TicketActivityDto> listAllForTicketAscending(Long ticketId) {
+        return activityLogRepository.findByTicket_IdOrderByCreatedAtAsc(ticketId).stream()
+                .map(this::toDto)
+                .toList();
     }
 
     /**

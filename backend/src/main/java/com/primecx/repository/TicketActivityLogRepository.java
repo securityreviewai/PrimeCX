@@ -1,5 +1,7 @@
 package com.primecx.repository;
 
+import java.util.List;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -11,4 +13,6 @@ import com.primecx.model.TicketActivityLog;
 public interface TicketActivityLogRepository extends JpaRepository<TicketActivityLog, Long> {
 
     Page<TicketActivityLog> findByTicket_IdOrderByCreatedAtDesc(Long ticketId, Pageable pageable);
+
+    List<TicketActivityLog> findByTicket_IdOrderByCreatedAtAsc(Long ticketId);
 }

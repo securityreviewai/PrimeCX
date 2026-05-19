@@ -1,5 +1,6 @@
 package com.primecx.repository;
 
+import java.util.Collection;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -31,6 +32,8 @@ public interface TicketRepository extends JpaRepository<Ticket, Long>, JpaSpecif
     List<Ticket> findByUserId(Long userId);
 
     List<Ticket> findByAssignedToId(Long assignedToId);
+
+    long countByAssignedTo_IdAndStatusIn(Long assignedToId, Collection<TicketStatus> statuses);
 
     List<Ticket> findByStatus(TicketStatus status);
 

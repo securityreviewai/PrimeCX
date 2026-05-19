@@ -13,11 +13,13 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.primecx.dto.DashboardStats;
+import com.primecx.dto.ExecutiveWorkloadDto;
 import com.primecx.dto.PagedAdminActivityFeedResponse;
 import com.primecx.dto.RecordingDto;
 import com.primecx.dto.UserDto;
 import com.primecx.service.DashboardService;
 import com.primecx.service.RecordingService;
+import com.primecx.service.SupportWorkloadReportService;
 import com.primecx.service.TicketActivityService;
 import com.primecx.service.UserService;
 
@@ -35,6 +37,7 @@ public class AdminController {
     private final UserService userService;
     private final RecordingService recordingService;
     private final TicketActivityService ticketActivityService;
+    private final SupportWorkloadReportService supportWorkloadReportService;
 
     @GetMapping("/dashboard")
     public ResponseEntity<DashboardStats> getDashboardStats() {
@@ -45,6 +48,11 @@ public class AdminController {
     public ResponseEntity<PagedAdminActivityFeedResponse> recentTicketActivity(
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(ticketActivityService.listRecentAcrossAllTickets(pageable));
+    }
+
+    @GetMapping("/reports/executive-workload")
+    public ResponseEntity<List<ExecutiveWorkloadDto>> executiveWorkload() {
+        return ResponseEntity.ok(supportWorkloadReportService.executiveWorkloadSnapshot());
     }
 
     @GetMapping("/users")
