@@ -1,7 +1,9 @@
 package com.primecx.service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
@@ -36,6 +38,23 @@ public class UserService {
 
     public boolean userExistsByEmail(String email) {
         return userRepository.findByEmail(email.strip()).isPresent();
+    }
+
+    @Transactional(readOnly = true)
+    public List<UserDto> resolveEmailsToProfiles(List<String> emails) {
+        LinkedHashMap<String, UserDto> deduped = new LinkedHashMap<>();
+        for (String raw : emails) {
+            if (raw == null) {
+                continue;
+            }
+            String e = raw.strip();
+            if (e.isEmpty()) {
+                continue;
+            }
+            String key = e.toLowerCase();
+            userRepository.findByEmail(e).ifPresent(u -> deduped.putIfAbsent(key, toDto(u)));
+        }
+        return new ArrayList<>(deduped.values());
     }
 
     public User getUserByOktaId(String oktaId) {

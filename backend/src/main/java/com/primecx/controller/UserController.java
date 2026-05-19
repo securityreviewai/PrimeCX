@@ -7,18 +7,21 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.primecx.dto.BulkEmailResolveRequest;
 import com.primecx.dto.UserDto;
 import com.primecx.dto.UserExistsResponse;
 import com.primecx.model.Role;
 import com.primecx.model.User;
 import com.primecx.service.UserService;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -67,6 +70,11 @@ public class UserController {
     @GetMapping("/exists")
     public ResponseEntity<UserExistsResponse> checkEmailRegistered(@RequestParam String email) {
         return ResponseEntity.ok(new UserExistsResponse(userService.userExistsByEmail(email)));
+    }
+
+    @PostMapping("/resolve-emails")
+    public ResponseEntity<List<UserDto>> resolveEmails(@Valid @RequestBody BulkEmailResolveRequest body) {
+        return ResponseEntity.ok(userService.resolveEmailsToProfiles(body.emails()));
     }
 
     @GetMapping("/{id}")
