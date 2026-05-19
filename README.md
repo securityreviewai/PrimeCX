@@ -138,6 +138,8 @@ For local development, LocalStack handles S3. For production:
 | PUT | `/api/users/{id}/role` | Update a user's role |
 | GET | `/api/tickets` | List support tickets |
 | GET | `/api/tickets/tags` | Distinct tags on tickets visible to the caller (role-scoped) |
+| GET | `/api/tickets/my/summary` | Compact open / in-progress / resolved / closed counts for visible tickets |
+| GET | `/api/tickets/recent` | Paginated recently updated tickets visible to the caller (`updatedAt` desc) |
 | POST | `/api/tickets` | Create a new ticket |
 | POST | `/api/tickets/{id}/reopen` | Reopen a resolved or closed ticket (same visibility as ticket); refreshes first-response SLA from now |
 | PUT | `/api/tickets/{id}` | Update a ticket |

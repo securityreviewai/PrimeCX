@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.primecx.dto.UserDto;
@@ -43,6 +44,14 @@ public class UserController {
     @PreAuthorize("hasAnyRole('SUPPORT_ADMIN', 'SUPPORT_MANAGER')")
     public ResponseEntity<List<UserDto>> listAssignableExecutives() {
         return ResponseEntity.ok(userService.listActiveSupportExecutivesForAssignment());
+    }
+
+    /**
+     * Resolves platform directory entry by email (e.g. ticket customer picker, @-mentions).
+     */
+    @GetMapping("/directory")
+    public ResponseEntity<UserDto> lookupByEmail(@RequestParam String email) {
+        return ResponseEntity.ok(userService.toDto(userService.getUserByEmail(email.strip())));
     }
 
     @GetMapping("/{id}")

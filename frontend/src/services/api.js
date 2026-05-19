@@ -41,6 +41,13 @@ export const getTickets = () => api.get('/tickets');
 
 export const getTicketStats = () => api.get('/tickets/stats');
 
+/** Compact status counts for tickets visible to the current user. */
+export const getMyTicketSummary = () => api.get('/tickets/my/summary');
+
+/** Recently updated visible tickets (default: updatedAt desc, size 10). */
+export const getRecentTickets = (params = {}) =>
+  api.get('/tickets/recent', { params: { page: 0, size: 10, sort: 'updatedAt,desc', ...params } });
+
 /** Distinct tags on tickets visible to the current user (role-scoped). */
 export const getTicketTags = () => api.get('/tickets/tags');
 

@@ -22,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.primecx.dto.CreateTicketRequest;
+import com.primecx.dto.MyTicketSummaryDto;
 import com.primecx.dto.PagedTicketsResponse;
 import com.primecx.dto.SubmitTicketSatisfactionRequest;
 import com.primecx.dto.TicketCategorizationResult;
@@ -437,6 +438,30 @@ public class TicketService {
         long resolvedCount = byStatus.getOrDefault(TicketStatus.RESOLVED, 0L)
                 + byStatus.getOrDefault(TicketStatus.CLOSED, 0L);
         return new TicketStatsResponse(byStatus, byCategory, total, activeCount, resolvedCount);
+    }
+
+    @Transactional(readOnly = true)
+    public MyTicketSummaryDto getVisibleTicketSummary(User viewer) {
+        Specification<Ticket> base = Specification.where(TicketSpecifications.visibleToUser(viewer));
+        long total = ticketRepository.count(base);
+        long open = ticketRepository.count(base.and(TicketSpecifications.hasStatus(TicketStatus.OPEN)));
+        long inProgress = ticketRepository.count(base.and(TicketSpecifications.hasStatus(TicketStatus.IN_PROGRESS)));
+        long resolved = ticketRepository.count(base.and(TicketSpecifications.hasStatus(TicketStatus.RESOLVED)));
+        long closed = ticketRepository.count(base.and(TicketSpecifications.hasStatus(TicketStatus.CLOSED)));
+        return new MyTicketSummaryDto(total, open, inProgress, resolved, closed);
+    }
+
+    @Transactional(readOnly = true)
+    public PagedTicketsResponse listRecentlyUpdatedVisible(User viewer, Pageable pageable) {
+        Specification<Ticket> spec = Specification.where(TicketSpecifications.visibleToUser(viewer));
+        Page<Ticket> page = ticketRepository.findAll(spec, pageable);
+        List<TicketDto> content = page.getContent().stream().map(this::toDto).toList();
+        return new PagedTicketsResponse(
+                content,
+                page.getTotalElements(),
+                page.getTotalPages(),
+                page.getNumber(),
+                page.getSize());
     }
 
     /**

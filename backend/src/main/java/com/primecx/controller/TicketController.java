@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.primecx.dto.CreateTicketMessageRequest;
 import com.primecx.dto.CreateTicketRequest;
+import com.primecx.dto.MyTicketSummaryDto;
 import com.primecx.dto.PagedTicketsResponse;
 import com.primecx.dto.RecordingDto;
 import com.primecx.dto.SubmitTicketSatisfactionRequest;
@@ -104,6 +105,20 @@ public class TicketController {
     public ResponseEntity<TicketStatsResponse> ticketStats(@AuthenticationPrincipal OidcUser oidcUser) {
         User currentUser = userService.getUserByOktaId(oidcUser.getSubject());
         return ResponseEntity.ok(ticketService.getTicketStats(currentUser));
+    }
+
+    @GetMapping("/my/summary")
+    public ResponseEntity<MyTicketSummaryDto> myTicketSummary(@AuthenticationPrincipal OidcUser oidcUser) {
+        User currentUser = userService.getUserByOktaId(oidcUser.getSubject());
+        return ResponseEntity.ok(ticketService.getVisibleTicketSummary(currentUser));
+    }
+
+    @GetMapping("/recent")
+    public ResponseEntity<PagedTicketsResponse> recentlyUpdatedTickets(
+            @AuthenticationPrincipal OidcUser oidcUser,
+            @PageableDefault(size = 10, sort = "updatedAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        User currentUser = userService.getUserByOktaId(oidcUser.getSubject());
+        return ResponseEntity.ok(ticketService.listRecentlyUpdatedVisible(currentUser, pageable));
     }
 
     @GetMapping("/tags")
