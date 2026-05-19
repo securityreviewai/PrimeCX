@@ -34,6 +34,10 @@ public class UserService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email));
     }
 
+    public boolean userExistsByEmail(String email) {
+        return userRepository.findByEmail(email.strip()).isPresent();
+    }
+
     public User getUserByOktaId(String oktaId) {
         return userRepository.findByOktaId(oktaId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with oktaId: " + oktaId));

@@ -88,6 +88,18 @@ public class TicketController {
         return ResponseEntity.ok(dtos);
     }
 
+    @GetMapping("/customer/{userId:\\d+}")
+    public ResponseEntity<List<TicketDto>> ticketsForCustomer(
+            @PathVariable Long userId,
+            @AuthenticationPrincipal OidcUser oidcUser) {
+        User requester = userService.getUserByOktaId(oidcUser.getSubject());
+        log.debug("Customer ticket list userId={} requesterId={}", userId, requester.getId());
+        List<TicketDto> dtos = ticketService.getTicketsByUser(userId).stream()
+                .map(ticketService::toDto)
+                .toList();
+        return ResponseEntity.ok(dtos);
+    }
+
     @GetMapping("/search")
     public ResponseEntity<PagedTicketsResponse> searchTickets(
             @AuthenticationPrincipal OidcUser oidcUser,

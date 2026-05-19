@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.primecx.dto.UserDto;
+import com.primecx.dto.UserExistsResponse;
 import com.primecx.model.Role;
 import com.primecx.service.UserService;
 
@@ -52,6 +53,11 @@ public class UserController {
     @GetMapping("/directory")
     public ResponseEntity<UserDto> lookupByEmail(@RequestParam String email) {
         return ResponseEntity.ok(userService.toDto(userService.getUserByEmail(email.strip())));
+    }
+
+    @GetMapping("/exists")
+    public ResponseEntity<UserExistsResponse> checkEmailRegistered(@RequestParam String email) {
+        return ResponseEntity.ok(new UserExistsResponse(userService.userExistsByEmail(email)));
     }
 
     @GetMapping("/{id}")
