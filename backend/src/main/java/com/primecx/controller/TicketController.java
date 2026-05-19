@@ -197,6 +197,16 @@ public class TicketController {
         return ResponseEntity.ok(ticketService.listSlaBreachedTickets(currentUser, pageable));
     }
 
+    @GetMapping("/sla/at-risk")
+    public ResponseEntity<PagedTicketsResponse> listSlaAtRiskTickets(
+            @AuthenticationPrincipal OidcUser oidcUser,
+            @RequestParam(defaultValue = "24") int withinHours,
+            @PageableDefault(size = 20, sort = "slaRespondBy", direction = Sort.Direction.ASC) Pageable pageable) {
+        User currentUser = userService.getUserByOktaId(oidcUser.getSubject());
+        int hours = Math.min(Math.max(withinHours, 1), 168);
+        return ResponseEntity.ok(ticketService.listSlaAtRiskTickets(currentUser, hours, pageable));
+    }
+
     @PostMapping("/{id:\\d+}/claim")
     @PreAuthorize("hasRole('SUPPORT_EXECUTIVE')")
     public ResponseEntity<TicketDto> claimTicket(

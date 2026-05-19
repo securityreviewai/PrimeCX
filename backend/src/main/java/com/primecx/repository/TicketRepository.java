@@ -48,4 +48,16 @@ public interface TicketRepository extends JpaRepository<Ticket, Long>, JpaSpecif
 
     @Query("SELECT COUNT(t) FROM Ticket t WHERE t.customerFeedback IS NOT NULL AND TRIM(t.customerFeedback) <> ''")
     long countTicketsWithNonEmptyFeedback();
+
+    @Query(value = """
+            SELECT CAST(t.created_at AS date) AS day,
+                   COUNT(*) AS cnt
+            FROM tickets t
+            WHERE t.created_at >= :from
+              AND t.created_at < :to
+            GROUP BY CAST(t.created_at AS date)
+            ORDER BY day ASC
+            """, nativeQuery = true)
+    List<Object[]> aggregateTicketsCreatedPerDay(@Param("from") java.time.LocalDateTime from,
+            @Param("to") java.time.LocalDateTime to);
 }

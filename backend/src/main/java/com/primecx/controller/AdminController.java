@@ -17,12 +17,14 @@ import com.primecx.dto.ExecutiveWorkloadDto;
 import com.primecx.dto.PagedAdminActivityFeedResponse;
 import com.primecx.dto.RecordingDto;
 import com.primecx.dto.SatisfactionSummaryDto;
+import com.primecx.dto.TicketVolumeBucketDto;
 import com.primecx.dto.UserDto;
 import com.primecx.service.DashboardService;
 import com.primecx.service.RecordingService;
 import com.primecx.service.SatisfactionReportService;
 import com.primecx.service.SupportWorkloadReportService;
 import com.primecx.service.TicketActivityService;
+import com.primecx.service.TicketVolumeReportService;
 import com.primecx.service.UserService;
 
 import lombok.RequiredArgsConstructor;
@@ -41,6 +43,7 @@ public class AdminController {
     private final TicketActivityService ticketActivityService;
     private final SupportWorkloadReportService supportWorkloadReportService;
     private final SatisfactionReportService satisfactionReportService;
+    private final TicketVolumeReportService ticketVolumeReportService;
 
     @GetMapping("/dashboard")
     public ResponseEntity<DashboardStats> getDashboardStats() {
@@ -61,6 +64,12 @@ public class AdminController {
     @GetMapping("/reports/satisfaction")
     public ResponseEntity<SatisfactionSummaryDto> satisfactionSummary() {
         return ResponseEntity.ok(satisfactionReportService.buildSummary());
+    }
+
+    @GetMapping("/reports/ticket-volume")
+    public ResponseEntity<List<TicketVolumeBucketDto>> ticketVolume(
+            @RequestParam(defaultValue = "30") int days) {
+        return ResponseEntity.ok(ticketVolumeReportService.ticketsCreatedPerDay(days));
     }
 
     @GetMapping("/users")

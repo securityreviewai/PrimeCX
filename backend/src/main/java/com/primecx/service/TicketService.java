@@ -422,6 +422,20 @@ public class TicketService {
     }
 
     @Transactional(readOnly = true)
+    public PagedTicketsResponse listSlaAtRiskTickets(User viewer, int withinHours, Pageable pageable) {
+        Specification<Ticket> spec = Specification.where(TicketSpecifications.visibleToUser(viewer))
+                .and(TicketSpecifications.slaAtRiskActive(withinHours));
+        Page<Ticket> page = ticketRepository.findAll(spec, pageable);
+        List<TicketDto> content = page.getContent().stream().map(this::toDto).toList();
+        return new PagedTicketsResponse(
+                content,
+                page.getTotalElements(),
+                page.getTotalPages(),
+                page.getNumber(),
+                page.getSize());
+    }
+
+    @Transactional(readOnly = true)
     public TicketStatsResponse getTicketStats(User viewer) {
         Specification<Ticket> base = Specification.where(TicketSpecifications.visibleToUser(viewer));
         long total = ticketRepository.count(base);

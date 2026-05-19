@@ -86,6 +86,12 @@ export const getSlaBreachedTickets = (params = {}) =>
     params: { page: 0, size: 20, sort: 'slaRespondBy,asc', ...params },
   });
 
+/** OPEN/IN_PROGRESS tickets with SLA deadline within `withinHours` (default 24, max 168). */
+export const getSlaAtRiskTickets = (params = {}) =>
+  api.get('/tickets/sla/at-risk', {
+    params: { page: 0, size: 20, sort: 'slaRespondBy,asc', withinHours: 24, ...params },
+  });
+
 export const getTicketMessages = (ticketId) => api.get(`/tickets/${ticketId}/messages`);
 
 export const postTicketMessage = (ticketId, payload) => {
@@ -157,6 +163,8 @@ export const getAdminRecentTicketActivity = (params = {}) =>
   api.get('/admin/activity/recent', { params: { page: 0, size: 20, sort: 'createdAt,desc', ...params } });
 export const getExecutiveWorkloadReport = () => api.get('/admin/reports/executive-workload');
 export const getSatisfactionReport = () => api.get('/admin/reports/satisfaction');
+export const getTicketVolumeReport = (params = {}) =>
+  api.get('/admin/reports/ticket-volume', { params: { days: 30, ...params } });
 export const getUsers = () => api.get('/users');
 
 /** Active support executives for assignment pickers (admin / manager). */

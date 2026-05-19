@@ -140,6 +140,8 @@ For local development, LocalStack handles S3. For production:
 | GET | `/api/tickets/tags` | Distinct tags on tickets visible to the caller (role-scoped) |
 | GET | `/api/tickets/my/summary` | Compact open / in-progress / resolved / closed counts for visible tickets |
 | GET | `/api/tickets/recent` | Paginated recently updated tickets visible to the caller (`updatedAt` desc) |
+| GET | `/api/tickets/sla/at-risk` | OPEN/IN_PROGRESS tickets with `slaRespondBy` in the next `withinHours` (1–168, default 24); visibility-scoped |
+| GET | `/api/tickets/sla/breached` | OPEN/IN_PROGRESS tickets past first-response SLA; visibility-scoped |
 | POST | `/api/tickets` | Create a new ticket |
 | POST | `/api/tickets/{id}/reopen` | Reopen a resolved or closed ticket (same visibility as ticket); refreshes first-response SLA from now |
 | PUT | `/api/tickets/{id}` | Update a ticket |
@@ -161,6 +163,7 @@ For local development, LocalStack handles S3. For production:
 | GET | `/api/admin/activity/recent` | Paginated recent ticket activity across all tickets (admin / manager) |
 | GET | `/api/admin/reports/executive-workload` | Per–support-executive counts: OPEN+IN_PROGRESS assigned tickets and ACTIVE sessions |
 | GET | `/api/admin/reports/satisfaction` | Global CSAT summary: averages, per-star counts, tickets with written feedback |
+| GET | `/api/admin/reports/ticket-volume` | Daily ticket creation counts for charting (`days` 1–366, default 30); zero-filled per calendar day |
 | GET | `/actuator/health` | Health check (public) |
 
 ## Deployment

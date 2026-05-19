@@ -61,6 +61,22 @@ public final class TicketSpecifications {
                 cb.lessThan(root.get("slaRespondBy"), now));
     }
 
+    /**
+     * Active tickets whose SLA deadline falls between {@code now} (exclusive) and {@code now + withinHours} (inclusive).
+     */
+    public static Specification<Ticket> slaAtRiskActive(int withinHours) {
+        int h = Math.max(withinHours, 1);
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime horizon = now.plusHours(h);
+        return (root, query, cb) -> cb.and(
+                cb.or(
+                        cb.equal(root.get("status"), TicketStatus.OPEN),
+                        cb.equal(root.get("status"), TicketStatus.IN_PROGRESS)),
+                cb.isNotNull(root.get("slaRespondBy")),
+                cb.greaterThan(root.get("slaRespondBy"), now),
+                cb.lessThanOrEqualTo(root.get("slaRespondBy"), horizon));
+    }
+
     public static Specification<Ticket> matchesSearch(String raw) {
         String q = raw == null ? "" : raw.strip();
         if (q.isEmpty()) {
