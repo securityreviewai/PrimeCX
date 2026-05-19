@@ -41,6 +41,9 @@ export const getTickets = () => api.get('/tickets');
 
 export const getTicketStats = () => api.get('/tickets/stats');
 
+/** Distinct tags on tickets visible to the current user (role-scoped). */
+export const getTicketTags = () => api.get('/tickets/tags');
+
 /** @param {Record<string,string|number|undefined>} params — q, status, priority, page, size, sort */
 export const searchTickets = (params) => api.get('/tickets/search', { params });
 
@@ -118,6 +121,10 @@ export const confirmUpload = (data) => api.post('/recordings/confirm', data);
 export const getRecording = (id) => api.get(`/recordings/${id}`);
 export const getRecordingsBySession = (sessionId) => api.get(`/recordings/session/${sessionId}`);
 export const getDashboard = () => api.get('/admin/dashboard');
+
+/** @param {Record<string,string|number|undefined>} params — page, size, sort */
+export const getAdminRecentTicketActivity = (params = {}) =>
+  api.get('/admin/activity/recent', { params: { page: 0, size: 20, sort: 'createdAt,desc', ...params } });
 export const getUsers = () => api.get('/users');
 export const updateUserRole = (id, role) => api.put(`/users/${id}/role`, { role });
 

@@ -100,6 +100,12 @@ public class TicketController {
         return ResponseEntity.ok(ticketService.getTicketStats(currentUser));
     }
 
+    @GetMapping("/tags")
+    public ResponseEntity<List<String>> listDistinctTags(@AuthenticationPrincipal OidcUser oidcUser) {
+        User currentUser = userService.getUserByOktaId(oidcUser.getSubject());
+        return ResponseEntity.ok(ticketService.listDistinctTagsVisibleTo(currentUser));
+    }
+
     @GetMapping("/pool")
     @PreAuthorize("hasAnyRole('SUPPORT_EXECUTIVE', 'SUPPORT_ADMIN', 'SUPPORT_MANAGER')")
     public ResponseEntity<PagedTicketsResponse> claimableTicketPool(

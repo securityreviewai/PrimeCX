@@ -2,6 +2,9 @@ package com.primecx.controller;
 
 import java.util.List;
 
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -10,10 +13,12 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.primecx.dto.DashboardStats;
+import com.primecx.dto.PagedAdminActivityFeedResponse;
 import com.primecx.dto.RecordingDto;
 import com.primecx.dto.UserDto;
 import com.primecx.service.DashboardService;
 import com.primecx.service.RecordingService;
+import com.primecx.service.TicketActivityService;
 import com.primecx.service.UserService;
 
 import lombok.RequiredArgsConstructor;
@@ -29,10 +34,17 @@ public class AdminController {
     private final DashboardService dashboardService;
     private final UserService userService;
     private final RecordingService recordingService;
+    private final TicketActivityService ticketActivityService;
 
     @GetMapping("/dashboard")
     public ResponseEntity<DashboardStats> getDashboardStats() {
         return ResponseEntity.ok(dashboardService.getStats());
+    }
+
+    @GetMapping("/activity/recent")
+    public ResponseEntity<PagedAdminActivityFeedResponse> recentTicketActivity(
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return ResponseEntity.ok(ticketActivityService.listRecentAcrossAllTickets(pageable));
     }
 
     @GetMapping("/users")

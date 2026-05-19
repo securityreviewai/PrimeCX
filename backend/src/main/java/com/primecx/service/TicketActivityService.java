@@ -5,6 +5,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.primecx.dto.AdminTicketActivityFeedItemDto;
+import com.primecx.dto.PagedAdminActivityFeedResponse;
 import com.primecx.dto.PagedTicketActivityResponse;
 import com.primecx.dto.TicketActivityDto;
 import com.primecx.model.Ticket;
@@ -53,6 +55,21 @@ public class TicketActivityService {
                 page.getSize());
     }
 
+    /**
+     * Recent activity across all tickets (admin / manager dashboards). Caller must enforce authorization.
+     */
+    @Transactional(readOnly = true)
+    public PagedAdminActivityFeedResponse listRecentAcrossAllTickets(Pageable pageable) {
+        Page<TicketActivityLog> page = activityLogRepository.findAll(pageable);
+        var content = page.getContent().stream().map(this::toFeedItemDto).toList();
+        return new PagedAdminActivityFeedResponse(
+                content,
+                page.getTotalElements(),
+                page.getTotalPages(),
+                page.getNumber(),
+                page.getSize());
+    }
+
     private TicketActivityDto toDto(TicketActivityLog row) {
         User actor = row.getActor();
         Long actorId = actor != null ? actor.getId() : null;
@@ -61,6 +78,24 @@ public class TicketActivityService {
                 : "System";
         return new TicketActivityDto(
                 row.getId(),
+                row.getEventType(),
+                row.getSummary(),
+                row.getCreatedAt(),
+                actorId,
+                actorName);
+    }
+
+    private AdminTicketActivityFeedItemDto toFeedItemDto(TicketActivityLog row) {
+        User actor = row.getActor();
+        Long actorId = actor != null ? actor.getId() : null;
+        String actorName = actor != null
+                ? (actor.getFirstName() + " " + actor.getLastName()).strip()
+                : "System";
+        var ticket = row.getTicket();
+        return new AdminTicketActivityFeedItemDto(
+                row.getId(),
+                ticket.getId(),
+                ticket.getTitle(),
                 row.getEventType(),
                 row.getSummary(),
                 row.getCreatedAt(),

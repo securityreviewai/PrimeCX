@@ -136,6 +136,7 @@ For local development, LocalStack handles S3. For production:
 | GET | `/api/users` | List all users (admin) |
 | PUT | `/api/users/{id}/role` | Update a user's role |
 | GET | `/api/tickets` | List support tickets |
+| GET | `/api/tickets/tags` | Distinct tags on tickets visible to the caller (role-scoped) |
 | POST | `/api/tickets` | Create a new ticket |
 | PUT | `/api/tickets/{id}` | Update a ticket |
 | GET | `/api/sessions` | List support sessions |
@@ -145,7 +146,8 @@ For local development, LocalStack handles S3. For production:
 | POST | `/api/recordings/confirm` | Confirm a completed upload |
 | GET | `/api/recordings/{id}` | Get recording metadata |
 | GET | `/api/recordings/session/{id}` | List recordings for a session |
-| GET | `/api/dashboard` | Dashboard statistics |
+| GET | `/api/admin/dashboard` | Dashboard statistics |
+| GET | `/api/admin/activity/recent` | Paginated recent ticket activity across all tickets (admin / manager) |
 | GET | `/actuator/health` | Health check (public) |
 
 ## Deployment

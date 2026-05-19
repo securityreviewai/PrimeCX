@@ -392,6 +392,14 @@ public class TicketService {
         return new TicketStatsResponse(byStatus, byCategory, total, activeCount, resolvedCount);
     }
 
+    /**
+     * Distinct normalized tags from tickets the viewer may access (aligned with ticket visibility rules).
+     */
+    @Transactional(readOnly = true)
+    public List<String> listDistinctTagsVisibleTo(User viewer) {
+        return ticketRepository.findDistinctTagsVisibleTo(viewer.getRole().name(), viewer.getId());
+    }
+
     @Transactional(readOnly = true)
     public PagedTicketsResponse listClaimablePool(Pageable pageable) {
         Specification<Ticket> spec = Specification.where(TicketSpecifications.unassignedClaimable());
