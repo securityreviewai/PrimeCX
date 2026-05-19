@@ -10,6 +10,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -21,6 +22,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.primecx.dto.BatchTicketAssignResultDto;
 import com.primecx.dto.CreateTicketRequest;
 import com.primecx.dto.MyTicketSummaryDto;
 import com.primecx.dto.PagedTicketsResponse;
@@ -130,6 +132,53 @@ public class TicketService {
         ticketActivityService.record(saved.getId(), actor, TicketActivityType.REOPENED, "Ticket reopened");
         log.info("Ticket {} reopened by user {}", ticketId, actor.getId());
         return saved;
+    }
+
+    @Transactional
+    public BatchTicketAssignResultDto batchAssignTickets(List<Long> ticketIds, Long assigneeUserId, User actor) {
+        if (actor.getRole() != Role.ROLE_SUPPORT_ADMIN && actor.getRole() != Role.ROLE_SUPPORT_MANAGER) {
+            throw new ForbiddenException("Only administrators or managers can bulk-assign tickets.");
+        }
+        User assignee = userRepository.findById(assigneeUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", assigneeUserId));
+        if (assignee.getRole() != Role.ROLE_SUPPORT_EXECUTIVE || !assignee.isActive()) {
+            throw new IllegalArgumentException("Assignee must be an active support executive.");
+        }
+
+        int assigned = 0;
+        int skippedNotFound = 0;
+        int skippedClosedOrResolved = 0;
+        int skippedAlreadyAssigned = 0;
+
+        List<Long> distinctIds = ticketIds.stream().distinct().toList();
+        for (Long tid : distinctIds) {
+            Optional<Ticket> opt = ticketRepository.findById(tid);
+            if (opt.isEmpty()) {
+                skippedNotFound++;
+                continue;
+            }
+            Ticket ticket = opt.get();
+            if (ticket.getStatus() == TicketStatus.RESOLVED || ticket.getStatus() == TicketStatus.CLOSED) {
+                skippedClosedOrResolved++;
+                continue;
+            }
+            Long prevAssigneeId = ticket.getAssignedTo() != null ? ticket.getAssignedTo().getId() : null;
+            if (Objects.equals(prevAssigneeId, assigneeUserId)) {
+                skippedAlreadyAssigned++;
+                continue;
+            }
+            ticket.setAssignedTo(assignee);
+            if (ticket.getStatus() == TicketStatus.OPEN) {
+                ticket.setStatus(TicketStatus.IN_PROGRESS);
+            }
+            ticket.setUpdatedAt(LocalDateTime.now());
+            ticketRepository.save(ticket);
+            ticketActivityService.record(ticket.getId(), actor, TicketActivityType.TICKET_UPDATED,
+                    "Bulk assign → executive #" + assigneeUserId);
+            assigned++;
+        }
+        log.info("Bulk assign by {} → executive {}: {} tickets updated", actor.getId(), assigneeUserId, assigned);
+        return new BatchTicketAssignResultDto(assigned, skippedNotFound, skippedClosedOrResolved, skippedAlreadyAssigned);
     }
 
     @Transactional(readOnly = true)

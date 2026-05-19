@@ -171,6 +171,12 @@ export const getTicketsByCategoryReport = (params = {}) =>
 
 export const getResolutionTimeReport = (params = {}) =>
   api.get('/admin/reports/resolution-time', { params: { days: 90, ...params } });
+
+export const getRecordingsUsageReport = () => api.get('/admin/reports/recordings-usage');
+
+/** @param {{ ticketIds: number[], assigneeUserId: number }} body */
+export const batchAssignTickets = (body) => api.post('/admin/tickets/batch-assign', body);
+
 export const getUsers = () => api.get('/users');
 
 /** Active support executives for assignment pickers (admin / manager). */

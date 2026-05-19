@@ -7,29 +7,40 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.primecx.dto.BatchTicketAssignRequest;
+import com.primecx.dto.BatchTicketAssignResultDto;
 import com.primecx.dto.DashboardStats;
 import com.primecx.dto.ExecutiveWorkloadDto;
 import com.primecx.dto.PagedAdminActivityFeedResponse;
 import com.primecx.dto.RecordingDto;
+import com.primecx.dto.RecordingUsageSummaryDto;
 import com.primecx.dto.ResolutionTimeSummaryDto;
 import com.primecx.dto.SatisfactionSummaryDto;
 import com.primecx.dto.TicketCategoryMixDto;
 import com.primecx.dto.TicketVolumeBucketDto;
 import com.primecx.dto.UserDto;
+import com.primecx.model.User;
 import com.primecx.service.DashboardService;
 import com.primecx.service.RecordingService;
+import com.primecx.service.RecordingUsageReportService;
 import com.primecx.service.SatisfactionReportService;
 import com.primecx.service.SupportWorkloadReportService;
 import com.primecx.service.TicketActivityService;
 import com.primecx.service.TicketAnalyticsReportService;
+import com.primecx.service.TicketService;
 import com.primecx.service.TicketVolumeReportService;
 import com.primecx.service.UserService;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -48,6 +59,8 @@ public class AdminController {
     private final SatisfactionReportService satisfactionReportService;
     private final TicketVolumeReportService ticketVolumeReportService;
     private final TicketAnalyticsReportService ticketAnalyticsReportService;
+    private final RecordingUsageReportService recordingUsageReportService;
+    private final TicketService ticketService;
 
     @GetMapping("/dashboard")
     public ResponseEntity<DashboardStats> getDashboardStats() {
@@ -86,6 +99,21 @@ public class AdminController {
     public ResponseEntity<ResolutionTimeSummaryDto> resolutionTime(
             @RequestParam(defaultValue = "90") int days) {
         return ResponseEntity.ok(ticketAnalyticsReportService.resolutionTimeSummary(days));
+    }
+
+    @GetMapping("/reports/recordings-usage")
+    public ResponseEntity<RecordingUsageSummaryDto> recordingsUsageSummary() {
+        return ResponseEntity.ok(recordingUsageReportService.buildSummary());
+    }
+
+    @PostMapping("/tickets/batch-assign")
+    public ResponseEntity<BatchTicketAssignResultDto> batchAssignTickets(
+            @Valid @RequestBody BatchTicketAssignRequest body,
+            @AuthenticationPrincipal OidcUser oidcUser) {
+        User actor = userService.getUserByOktaId(oidcUser.getSubject());
+        BatchTicketAssignResultDto result = ticketService.batchAssignTickets(
+                body.ticketIds(), body.assigneeUserId(), actor);
+        return ResponseEntity.ok(result);
     }
 
     @GetMapping("/users")
