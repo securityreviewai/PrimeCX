@@ -84,6 +84,34 @@ public class TicketService {
         return saved;
     }
 
+    @Transactional
+    public Ticket releaseTicket(Long ticketId, User actor) {
+        Ticket ticket = getTicketById(ticketId);
+        if (ticket.getAssignedTo() == null) {
+            throw new IllegalArgumentException("Ticket is not assigned.");
+        }
+        switch (actor.getRole()) {
+            case ROLE_SUPPORT_ADMIN, ROLE_SUPPORT_MANAGER -> { }
+            case ROLE_SUPPORT_EXECUTIVE -> {
+                if (!actor.getId().equals(ticket.getAssignedTo().getId())) {
+                    throw new ForbiddenException("You can only release tickets assigned to you.");
+                }
+            }
+            case ROLE_USER -> throw new ForbiddenException("You cannot release this ticket.");
+        }
+        if (ticket.getStatus() != TicketStatus.OPEN && ticket.getStatus() != TicketStatus.IN_PROGRESS) {
+            throw new IllegalArgumentException("Only open or in-progress tickets can be released to the queue.");
+        }
+
+        ticket.setAssignedTo(null);
+        ticket.setStatus(TicketStatus.OPEN);
+        ticket.setUpdatedAt(LocalDateTime.now());
+        Ticket saved = ticketRepository.save(ticket);
+        ticketActivityService.record(saved.getId(), actor, TicketActivityType.RELEASED, "Ticket released back to queue");
+        log.info("Ticket {} released to queue by user {}", ticketId, actor.getId());
+        return saved;
+    }
+
     @Transactional(readOnly = true)
     public boolean writeVisibleTicketsCsv(User viewer, Writer writer) throws IOException {
         Specification<Ticket> spec = Specification.where(TicketSpecifications.visibleToUser(viewer));

@@ -57,6 +57,9 @@ export const getTicket = (id) => api.get(`/tickets/${id}`);
 /** Support sessions linked to a ticket (subject to ticket visibility). */
 export const getTicketSessions = (ticketId) => api.get(`/tickets/${ticketId}/sessions`);
 
+/** Recording metadata for all sessions on this ticket (no presigned URLs; use getRecording per id). */
+export const getTicketRecordings = (ticketId) => api.get(`/tickets/${ticketId}/recordings`);
+
 /** @param {Record<string,string|number|undefined>} params — page, size, sort */
 export const getTicketActivity = (ticketId, params = {}) =>
   api.get(`/tickets/${ticketId}/activity`, {
@@ -96,6 +99,9 @@ export const submitTicketSatisfaction = (ticketId, payload) =>
   api.post(`/tickets/${ticketId}/satisfaction`, payload);
 
 export const claimTicket = (id) => api.post(`/tickets/${id}/claim`);
+
+/** Release assignment; ticket goes back to OPEN / pool (executive, admin, or manager). */
+export const releaseTicket = (id) => api.post(`/tickets/${id}/release`);
 
 export const exportTicketsCsv = () =>
   api.get('/tickets/export', { responseType: 'blob', headers: { Accept: 'text/csv' } });

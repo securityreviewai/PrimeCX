@@ -25,6 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.primecx.dto.CreateTicketMessageRequest;
 import com.primecx.dto.CreateTicketRequest;
 import com.primecx.dto.PagedTicketsResponse;
+import com.primecx.dto.RecordingDto;
 import com.primecx.dto.SubmitTicketSatisfactionRequest;
 import com.primecx.dto.SupportSessionDto;
 import com.primecx.dto.TicketDto;
@@ -37,6 +38,7 @@ import com.primecx.model.TicketCategory;
 import com.primecx.model.TicketPriority;
 import com.primecx.model.TicketStatus;
 import com.primecx.model.User;
+import com.primecx.service.RecordingService;
 import com.primecx.service.SupportSessionService;
 import com.primecx.service.TicketMessageService;
 import com.primecx.service.TicketService;
@@ -57,6 +59,7 @@ public class TicketController {
     private final TicketMessageService ticketMessageService;
     private final UserService userService;
     private final SupportSessionService supportSessionService;
+    private final RecordingService recordingService;
 
     @PostMapping
     public ResponseEntity<TicketDto> createTicket(
@@ -149,6 +152,16 @@ public class TicketController {
         return ResponseEntity.ok(ticketService.toDto(ticket));
     }
 
+    @PostMapping("/{id:\\d+}/release")
+    @PreAuthorize("hasAnyRole('SUPPORT_EXECUTIVE', 'SUPPORT_ADMIN', 'SUPPORT_MANAGER')")
+    public ResponseEntity<TicketDto> releaseTicket(
+            @PathVariable Long id,
+            @AuthenticationPrincipal OidcUser oidcUser) {
+        User currentUser = userService.getUserByOktaId(oidcUser.getSubject());
+        Ticket ticket = ticketService.releaseTicket(id, currentUser);
+        return ResponseEntity.ok(ticketService.toDto(ticket));
+    }
+
     @GetMapping("/{id:\\d+}/messages")
     public ResponseEntity<List<TicketMessageDto>> listTicketMessages(
             @PathVariable Long id,
@@ -173,6 +186,14 @@ public class TicketController {
             @AuthenticationPrincipal OidcUser oidcUser) {
         User currentUser = userService.getUserByOktaId(oidcUser.getSubject());
         return ResponseEntity.ok(supportSessionService.listSessionsForTicket(id, currentUser));
+    }
+
+    @GetMapping("/{id:\\d+}/recordings")
+    public ResponseEntity<List<RecordingDto>> listRecordingsForTicket(
+            @PathVariable Long id,
+            @AuthenticationPrincipal OidcUser oidcUser) {
+        User currentUser = userService.getUserByOktaId(oidcUser.getSubject());
+        return ResponseEntity.ok(recordingService.listRecordingsForTicket(id, currentUser));
     }
 
     @GetMapping("/{id:\\d+}")

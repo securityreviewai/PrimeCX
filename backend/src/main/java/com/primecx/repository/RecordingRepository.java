@@ -12,4 +12,6 @@ public interface RecordingRepository extends JpaRepository<Recording, Long> {
     List<Recording> findBySessionId(Long sessionId);
 
     List<Recording> findBySession_SupportExecutiveId(Long supportExecutiveId);
+
+    List<Recording> findBySession_Ticket_IdOrderByUploadedAtDesc(Long ticketId);
 }

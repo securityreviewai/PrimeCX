@@ -10,6 +10,7 @@ import com.primecx.dto.RecordingDto;
 import com.primecx.exception.ResourceNotFoundException;
 import com.primecx.model.Recording;
 import com.primecx.model.SupportSession;
+import com.primecx.model.User;
 import com.primecx.repository.RecordingRepository;
 import com.primecx.repository.SupportSessionRepository;
 
@@ -24,6 +25,7 @@ public class RecordingService {
     private final RecordingRepository recordingRepository;
     private final SupportSessionRepository supportSessionRepository;
     private final S3StorageService s3StorageService;
+    private final TicketService ticketService;
 
     @Transactional
     public Recording saveRecordingMetadata(Long sessionId, String fileName, String contentType,
@@ -60,6 +62,17 @@ public class RecordingService {
 
     public List<Recording> getRecordingsByExecutive(Long executiveId) {
         return recordingRepository.findBySession_SupportExecutiveId(executiveId);
+    }
+
+    /**
+     * All session recordings for a ticket, newest upload first. Caller must be allowed to view the ticket.
+     */
+    @Transactional(readOnly = true)
+    public List<RecordingDto> listRecordingsForTicket(Long ticketId, User viewer) {
+        ticketService.getTicketVisibleTo(ticketId, viewer);
+        return recordingRepository.findBySession_Ticket_IdOrderByUploadedAtDesc(ticketId).stream()
+                .map(r -> toDto(r, false))
+                .toList();
     }
 
     @Transactional
